@@ -13,6 +13,7 @@
 import type { BgStudioSettings, WallpaperManifest } from '../shared/protocol.ts'
 import { isDarkScheme } from './api.ts'
 import { setDshThemePreference } from './theme.ts'
+import { tt } from './locales.ts'
 
 const TOAST_ID = 'dsh-bg-studio-mood-toast'
 /**
@@ -26,31 +27,6 @@ let activeBundle: string | null = null
 /** Clear activation memory (wallpaper went away / mode switched). */
 export function resetMoodActivation(): void {
   activeBundle = null
-}
-
-type Strings = {
-  toLight: string
-  toDark: string
-  keep: string
-  never: string
-}
-
-const EN: Strings = {
-  toLight: 'The wallpaper woke up to daylight, but the UI is still in bed. Open the curtains together?',
-  toDark: 'The wallpaper has gone stargazing, but the UI left the lights on. Turn them off together?',
-  keep: 'Keep as is',
-  never: 'Never ask for this wallpaper',
-}
-
-function strings(): Strings {
-  const zh = navigator.language?.toLowerCase().startsWith('zh')
-  const zhStrings: Strings = {
-    toLight: '壁纸天亮了，界面还赖在夜里。要一起掀开窗帘吗？',
-    toDark: '壁纸已入夜，界面还亮着灯。要一起关灯看星星吗？',
-    keep: '保持现状',
-    never: '这张壁纸不再提醒',
-  }
-  return zh ? zhStrings : EN
 }
 
 /** Average luminance of a video's current frame; null when not decodable. */
@@ -102,13 +78,10 @@ export function maybePromptThemeMood(options: {
   if (tone === 'dark' && dark) return
   if (tone === 'light' && !dark) return
 
-  const s = strings()
   const wantLight = tone === 'light'
-  const text = wantLight ? s.toLight : s.toDark
-  const buttonLabel = navigator.language?.toLowerCase().startsWith('zh')
-    ? (wantLight ? '切换到浅色模式' : '切换到深色模式')
-    : (wantLight ? 'Switch to light mode' : 'Switch to dark mode')
-  showMoodToast(text, buttonLabel, s.keep, s.never, wantLight, onMute)
+  const text = tt(wantLight ? 'mood.toLight' : 'mood.toDark')
+  const buttonLabel = tt(wantLight ? 'mood.switchLight' : 'mood.switchDark')
+  showMoodToast(text, buttonLabel, tt('mood.keep'), tt('mood.never'), wantLight, onMute)
 }
 
 function showMoodToast(text: string, switchLabel: string, keepLabel: string, neverLabel: string, wantLight: boolean, onMute: () => void): void {

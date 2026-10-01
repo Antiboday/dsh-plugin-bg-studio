@@ -1,7 +1,19 @@
 /** Panel copy. English and Chinese, matching the DSH locale service shape. */
 export const en = {
   'panel.title': 'Background Studio',
+  'panel.entry': 'Background',
   'panel.subtitle': 'Custom backgrounds for the app window. Text colors always follow your light/dark theme.',
+  'type.video': 'video',
+  'type.web': 'web',
+  'type.canvas': 'canvas',
+  'type.character': 'character',
+  'type.?': '?',
+  'mood.toLight': 'The wallpaper woke up to daylight, but the UI is still in bed. Open the curtains together?',
+  'mood.toDark': 'The wallpaper has gone stargazing, but the UI left the lights on. Turn them off together?',
+  'mood.switchLight': 'Switch to light mode',
+  'mood.switchDark': 'Switch to dark mode',
+  'mood.keep': 'Keep as is',
+  'mood.never': 'Never ask for this wallpaper',
   'mode.none': 'Default',
   'mode.none.hint': 'Stock DSH appearance, nothing changed.',
   'mode.image': 'Picture',
@@ -68,7 +80,19 @@ export type LocaleKey = keyof typeof en
 
 export const zh: Record<LocaleKey, string> = {
   'panel.title': '背景工作室',
+  'panel.entry': '背景',
   'panel.subtitle': '自由更换应用背景。字体颜色始终跟随深浅色主题，不受影响。',
+  'type.video': '视频',
+  'type.web': '网页',
+  'type.canvas': '场景',
+  'type.character': '角色',
+  'type.?': '?',
+  'mood.toLight': '壁纸天亮了，界面还赖在夜里。要一起掀开窗帘吗？',
+  'mood.toDark': '壁纸已入夜，界面还亮着灯。要一起关灯看星星吗？',
+  'mood.switchLight': '切换到浅色模式',
+  'mood.switchDark': '切换到深色模式',
+  'mood.keep': '保持现状',
+  'mood.never': '这张壁纸不再提醒',
   'mode.none': '默认',
   'mode.none.hint': 'DSH 原生外观，不做任何更改。',
   'mode.image': '图片',
@@ -129,4 +153,33 @@ export const zh: Record<LocaleKey, string> = {
   'we.importOne': '导入',
   'we.none': '该文件夹没有可转换的壁纸（仅支持视频/网页型）。',
   'action.saved': '更改即时生效并自动保存。',
+}
+
+/* ------------------------- shared translator ------------------------- */
+
+/**
+ * The DSH locale service translator (ctx.locale.bind) once the client entry
+ * has registered our dictionaries; reads the ACTIVE language at call time,
+ * so everything follows the app's Language setting without a reload. Falls
+ * back to the browser language until then (or when the service is absent).
+ */
+let serviceTranslator: ((key: string) => string) | null = null
+
+/** Called once from the client entry with ctx.locale.bind(NS). */
+export function setTranslator(fn: (key: string) => string): void {
+  serviceTranslator = fn
+}
+
+/** Translate one key; never throws, falls back to the key itself. */
+export function tt(key: LocaleKey | string): string {
+  if (serviceTranslator) {
+    try {
+      const value = serviceTranslator(key)
+      if (value && value !== key) return value
+    } catch {
+      /* fall through to the browser heuristic */
+    }
+  }
+  const dict = navigator.language?.toLowerCase().startsWith('zh') ? zh : en
+  return (dict as Record<string, string>)[key] ?? key
 }

@@ -11,18 +11,36 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the ctx.slots merge (renderer owns the slot registry).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+// Type-only: pulls the ctx.locale merge (locale service dictionaries).
+import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { BgStudioRuntime } from './runtime.ts'
 import { PanelPage } from './panel/PanelPage.tsx'
 import { PanelIcon } from './panel/PanelIcon.tsx'
 import { BG_STUDIO_PANEL_ID } from './ids.ts'
+import { en, zh, setTranslator, tt } from './locales.ts'
+
+/** Locale namespace this plugin owns. */
+const NS = 'dsh-bg-studio'
 
 /** Row order among the shell's global panel rows (Plugins 0, Schedule 10, board 20…). */
 const PANEL_ORDER = 40
 
 /** Required services (fiber inject waiting — the runtime must be up first). */
-export const inject = ['slots', 'layout']
+export const inject = ['slots', 'layout', 'locale']
 
 export function apply(ctx: ClientContext): void {
+  // Register our dictionaries with the app's locale service and route every
+  // tt() call through it — copy then follows the DSH Language setting at
+  // call time (no reload needed). Falls back to the browser language when
+  // the service is unavailable.
+  try {
+    const locale = (ctx as unknown as { locale?: { register(ns: string, dicts: Record<string, Record<string, string>>): void; bind(ns: string): (key: string) => string } }).locale
+    locale?.register(NS, { zh, en })
+    if (locale) setTranslator(locale.bind(NS))
+  } catch (error) {
+    console.warn('[bg-studio] locale registration failed:', error)
+  }
+
   const runtime = new BgStudioRuntime()
   void runtime.start()
 
@@ -36,7 +54,7 @@ export function apply(ctx: ClientContext): void {
       name: 'sidebar.panellist',
       id: BG_STUDIO_PANEL_ID,
       order: PANEL_ORDER,
-      label: () => (navigator.language?.toLowerCase().startsWith('zh') ? '背景' : 'Background'),
+      label: () => tt('panel.entry'),
     }, PanelIcon)))
 
     disposers.push(slots.inject('main', () => slots.register({

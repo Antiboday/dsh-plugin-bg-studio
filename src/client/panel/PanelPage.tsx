@@ -6,13 +6,12 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { BgStudioRuntime } from '../runtime.ts'
 import { imageUrl, isDarkScheme, subscribeColorScheme, type WeItem } from '../api.ts'
-import { en, zh, type LocaleKey } from '../locales.ts'
+import { tt as sharedTt, type LocaleKey } from '../locales.ts'
 // Plain text at build time; injected once as a <style> below.
 import panelCss from './panel.css'
 
-/** Panel copy follows the browser language (zh for Chinese, en otherwise). */
-const tt = (key: LocaleKey): string =>
-  navigator.language?.toLowerCase().startsWith('zh') ? zh[key] : en[key]
+/** Locale-aware copy (DSH language service, browser-language fallback). */
+const tt = sharedTt as (key: LocaleKey | string) => string
 
 let styleInjected = false
 function ensurePanelStyle(): void {
@@ -284,7 +283,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
                       tabIndex={0}
                       onKeyDown={(event) => { if (event.key === 'Enter') runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } }) }}
                     >
-                      <span className="bg-studio-wp-type">{wp.type}</span>
+                      <span className="bg-studio-wp-type">{tt(`type.${wp.type}`)}</span>
                       <span className="bg-studio-wp-name">{wp.error ? `${wp.name}（${tt('wallpaper.bad')}）` : wp.name}</span>
                       <button
                         type="button"
@@ -368,7 +367,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
               {weItems.filter((item) => item.convertible).length === 0 && <p className="bg-studio-note">{tt('we.none')}</p>}
               {weItems.map((item) => (
                 <div key={item.id} className="bg-studio-weitem" data-ok={item.convertible}>
-                  <span className="bg-studio-wp-type">{item.type}</span>
+                  <span className="bg-studio-wp-type">{tt(`type.${item.type}`)}</span>
                   <span className="bg-studio-wp-name" title={item.reason ?? ''}>{item.title}{item.convertible ? '' : ` — ${item.reason ?? ''}`}</span>
                   {item.convertible && (
                     <button type="button" className="bg-studio-button" disabled={weBusy}
