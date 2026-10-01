@@ -175,16 +175,25 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
             <span />
           </div>
           <div className="bg-studio-field">
-            <label>{tt('image.tint')}</label>
+            <label>{tt('image.tint')}{settings.image.tint ? `（${tt('image.tint.custom')}）` : `（${tt('image.tint.auto')}）`}</label>
             <input
               type="color"
               className="bg-studio-color"
               value={settings.image.tint ?? '#000000'}
               onChange={(event) => runtime.update({ image: { ...settings.image, tint: event.target.value } })}
             />
-            <button type="button" className="bg-studio-button" onClick={() => runtime.update({ image: { ...settings.image, tint: null } })}>
-              {tt('image.tint.auto')}
-            </button>
+            {settings.image.tint ? (
+              <button
+                type="button"
+                className="bg-studio-button bg-studio-tint-clear"
+                title={tt('image.tint.auto')}
+                onClick={() => runtime.update({ image: { ...settings.image, tint: null } })}
+              >
+                ×
+              </button>
+            ) : (
+              <span />
+            )}
           </div>
         </div>
       )}

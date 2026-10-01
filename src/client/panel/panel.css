@@ -2,11 +2,30 @@
    injected as a style element — no CSS-module machinery, no build magic). */
 
 /* The view shell's opaque base is painted INLINE by the panel component
-   (load-order- and cache-proof); these rules are only the CSS fallback. */
+   (load-order- and cache-proof); these rules are only the CSS fallback.
+   The center column clips overflow (overflow-y: hidden), so the panel must
+   scroll ITSELF: fixed viewport height + own scrollbar. */
 .bg-studio-view {
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   padding: 20px 0 48px;
   background: #f9fafb;
+}
+
+.bg-studio-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.bg-studio-view::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 4px;
+}
+
+.bg-studio-tint-clear {
+  width: 26px;
+  padding: 5px 0;
+  text-align: center;
+  line-height: 1;
 }
 
 body[data-ds-dark-theme] .bg-studio-view {
