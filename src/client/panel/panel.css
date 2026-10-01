@@ -1,14 +1,26 @@
 /* Background Studio panel. All classes prefixed bg-studio- (plain CSS,
    injected as a style element — no CSS-module machinery, no build magic). */
 
+/* The view shell paints an OPAQUE, theme-matched base: while transparent /
+   frosted modes clear the app surfaces, the settings panel itself must stay
+   readable — you tune the effect here while it applies everywhere else. */
 .bg-studio-view {
+  min-height: 100%;
+  padding: 20px 0 48px;
+  background: #f9fafb;
+}
+
+body[data-ds-dark-theme] .bg-studio-view {
+  background: #151517;
+}
+
+.bg-studio-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 22px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 20px 22px 40px;
-  max-width: 720px;
-  margin: 0 auto;
-  color: inherit;
   font-size: 13px;
   line-height: 1.55;
 }

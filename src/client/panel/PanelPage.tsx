@@ -62,7 +62,7 @@ const MODES: Array<{ kind: 'none' | 'image' | 'transparent' | 'frosted' | 'anima
 export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.ReactElement {
   ensurePanelStyle()
   const subscribe = useCallback((listener: () => void) => runtime.subscribe(listener), [runtime])
-  const snapshot = useCallback(() => `${runtime.library.length}:${JSON.stringify(runtime.current)}`, [runtime])
+  const snapshot = useCallback(() => `${runtime.library.length}:${runtime.materialSupport}:${JSON.stringify(runtime.current)}`, [runtime])
   useSyncExternalStore(subscribe, snapshot)
 
   const settings = runtime.current
@@ -71,9 +71,11 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
   if (!settings) {
     return (
       <div className="bg-studio-view" data-dsh-plugin="bg-studio">
-        <div className="bg-studio-header">
-          <h2>{tt('panel.title')}</h2>
-          <p>{tt('action.offline')}</p>
+        <div className="bg-studio-inner">
+          <div className="bg-studio-header">
+            <h2>{tt('panel.title')}</h2>
+            <p>{tt('action.offline')}</p>
+          </div>
         </div>
       </div>
     )
@@ -98,6 +100,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
 
   return (
     <div className="bg-studio-view" data-dsh-plugin="bg-studio">
+      <div className="bg-studio-inner">
       <div className="bg-studio-header">
         <h2>{tt('panel.title')}</h2>
         <p>{tt('panel.subtitle')}</p>
@@ -187,6 +190,11 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
             onChange={(v) => runtime.update({ transparent: { ...settings.transparent, scrim: v } })}
           />
           <p className="bg-studio-note">{tt('transparent.note')}</p>
+          {runtime.materialSupport !== 'unknown' && (
+            <p className="bg-studio-note">
+              {tt(runtime.materialSupport === 'ok' ? 'transparent.material.ok' : 'transparent.material.unavailable')}
+            </p>
+          )}
         </div>
       )}
 
@@ -272,6 +280,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
         <button type="button" className="bg-studio-button" onClick={() => { void runtime.reset() }}>
           {tt('action.reset')}
         </button>
+      </div>
       </div>
     </div>
   )

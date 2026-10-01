@@ -29,6 +29,7 @@ export const ROUTES = {
   reset: '/api/dsh-bg-studio/reset',
   images: '/api/dsh-bg-studio/images',
   image: '/api/dsh-bg-studio/image',
+  windowMaterial: '/api/dsh-bg-studio/window-material',
 } as const
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -120,6 +121,8 @@ export interface RouteDeps {
   store: BgStudioStore
   maxImageBytes: number
   logger: { warn: (error: unknown) => void }
+  /** Best-effort DWM material for the desktop window (see host index). */
+  applyWindowMaterial?: (material: string) => { ok: boolean; detail: string }
 }
 
 async function settingsView(store: BgStudioStore): Promise<{ settings: unknown; images: unknown }> {
@@ -128,7 +131,7 @@ async function settingsView(store: BgStudioStore): Promise<{ settings: unknown; 
 
 /** Build every route object for ctx.webServer.register. webServer matches by
  * path only, so each path is ONE handler that dispatches on req.method. */
-export function makeRoutes({ store, maxImageBytes, logger }: RouteDeps): Route[] {
+export function makeRoutes({ store, maxImageBytes, logger, applyWindowMaterial }: RouteDeps): Route[] {
   return [
     {
       kind: 'exact',
@@ -204,6 +207,32 @@ export function makeRoutes({ store, maxImageBytes, logger }: RouteDeps): Route[]
             }
             const id = await store.saveImage(bytes, mime)
             writeJson(res, 201, { id })
+            return
+          }
+          writeJson(res, 405, { error: `method not allowed (${req.method})` })
+        } catch (error) {
+          logger.warn(error)
+          writeJson(res, 500, { error: String(error) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: ROUTES.windowMaterial,
+      handler: async (req, res) => {
+        try {
+          if (req.method === 'POST') {
+            const body = await readJsonObject(req, 4 * 1024)
+            const material = body?.material
+            if (typeof material !== 'string' || !['acrylic', 'mica', 'none'].includes(material)) {
+              writeJson(res, 400, { error: "expected {material: 'acrylic'|'mica'|'none'}" })
+              return
+            }
+            if (!applyWindowMaterial) {
+              writeJson(res, 200, { ok: false, detail: 'electron-unavailable' })
+              return
+            }
+            writeJson(res, 200, applyWindowMaterial(material))
             return
           }
           writeJson(res, 405, { error: `method not allowed (${req.method})` })

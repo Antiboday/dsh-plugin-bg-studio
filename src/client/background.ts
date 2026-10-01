@@ -29,10 +29,12 @@ export interface ProviderContext {
   onSchemeChange(callback: () => void): () => void
 }
 
-/** One background mode implementation. */
+/** One background mode implementation. mount runs on mode entry; update
+ * re-renders parameters WITHOUT remounting (animated content must not
+ * restart on slider drags); dispose releases everything on mode exit. */
 export interface BackgroundProvider {
   mount(el: HTMLElement, settings: BgStudioSettings, ctx: ProviderContext): void
-  update?(el: HTMLElement, settings: BgStudioSettings): void
+  update?(el: HTMLElement, settings: BgStudioSettings, ctx: ProviderContext): void
   dispose?(el: HTMLElement): void
 }
 
@@ -73,7 +75,7 @@ export class BackgroundLayer {
     const provider = PROVIDERS[settings.kind]
     if (!provider) return
     if (this.activeKind === settings.kind) {
-      provider.update?.(el, settings)
+      provider.update?.(el, settings, ctx)
       return
     }
     if (this.activeKind !== null) {

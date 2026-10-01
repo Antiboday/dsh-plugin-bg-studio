@@ -8,6 +8,7 @@
  * stays silent — a background customizer must never take the harness down.
  */
 import { homedir } from 'node:os'
+import { createRequire } from 'node:module'
 import { join, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
@@ -32,6 +33,57 @@ export const Config: Schema<Config> = Schema.object({
   maxImageMiB: Schema.number().default(20),
 })
 
+/**
+ * Best-effort native window material for the DESKTOP app's transparent mode.
+ *
+ * Why: the Windows main window is not created with `transparent: true` (a
+ * constructor-only flag), so cleared CSS surfaces can only reveal the window
+ * color. On Windows 11, though, `BrowserWindow.setBackgroundMaterial()`
+ * swaps that opaque backing for a DWM system material (acrylic/mica) at
+ * runtime. That API only exists when this host code runs inside the Electron
+ * main process — under `dsh web` / CLI profiles require('electron') yields
+ * nothing usable, and the probe stays null. Every step degrades silently:
+ * wrong OS, missing API, or destroyed windows just report unavailable.
+ */
+interface MaterialWindow {
+  getAllWindows(): Array<{
+    isDestroyed(): boolean
+    getBounds(): { width: number; height: number }
+    setBackgroundMaterial(material: string): void
+  }>
+}
+let electronWindows: MaterialWindow | null = null
+try {
+  const require = createRequire(import.meta.url)
+  const electron = require('electron') as { BrowserWindow?: MaterialWindow }
+  if (electron && typeof electron.BrowserWindow?.getAllWindows === 'function') {
+    electronWindows = electron.BrowserWindow
+  }
+} catch {
+  /* not running inside Electron (web/CLI profiles) — feature off */
+}
+
+/** The primary (largest live) window, or null. */
+function primaryWindow(): ReturnType<MaterialWindow['getAllWindows']>[number] | null {
+  if (!electronWindows) return null
+  const alive = electronWindows.getAllWindows().filter((w) => !w.isDestroyed())
+  if (alive.length === 0) return null
+  return alive.reduce((a, b) => (b.getBounds().width * b.getBounds().height > a.getBounds().width * a.getBounds().height ? b : a))
+}
+
+/** Apply a DWM material ('acrylic' | 'mica' | 'none') to the main window. */
+export function applyWindowMaterial(material: string): { ok: boolean; detail: string } {
+  if (!electronWindows) return { ok: false, detail: 'electron-unavailable' }
+  const win = primaryWindow()
+  if (!win) return { ok: false, detail: 'no-window' }
+  try {
+    win.setBackgroundMaterial(material)
+    return { ok: true, detail: material }
+  } catch (error) {
+    return { ok: false, detail: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 export function apply(ctx: Context, config: Config): void {
   if (config?.enabled === false) return
   try {
@@ -44,6 +96,7 @@ export function apply(ctx: Context, config: Config): void {
       store,
       maxImageBytes: Math.max(1, config.maxImageMiB) * 1024 * 1024,
       logger: { warn: (error) => ctx.logger.warn(error) },
+      applyWindowMaterial,
     })
     ctx.effect(() => {
       const disposers = routes.map((route) => ctx.webServer.register(route))

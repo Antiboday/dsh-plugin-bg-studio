@@ -11,7 +11,7 @@
 import type { BgStudioSettings, ImageEntry, SettingsPayload } from '../shared/protocol.ts'
 import { BackgroundLayer, type ProviderContext } from './background.ts'
 import { applySurfaceStyle, removeSurfaceStyle } from './surface.ts'
-import { deleteImage, fetchSettings, imageUrl, isDarkScheme, resetSettings, saveSettings, subscribeColorScheme, uploadImage } from './api.ts'
+import { deleteImage, fetchSettings, imageUrl, isDarkScheme, resetSettings, saveSettings, setWindowMaterial, subscribeColorScheme, uploadImage } from './api.ts'
 
 const PERSIST_DEBOUNCE_MS = 350
 
@@ -21,6 +21,9 @@ export class BgStudioRuntime {
   private layer = new BackgroundLayer()
   private saveTimer: ReturnType<typeof setTimeout> | null = null
   private offScheme: (() => void) | null = null
+  /** DWM material verdict: 'unknown' until first try, then 'ok'/'unavailable'. */
+  materialSupport: 'unknown' | 'ok' | 'unavailable' = 'unknown'
+  private materialNow: 'acrylic' | 'none' | null = null
   private providerCtx: ProviderContext = {
     imageUrl,
     isDark: isDarkScheme,
@@ -56,6 +59,34 @@ export class BgStudioRuntime {
     if (!this.settings) return
     applySurfaceStyle(this.settings, isDarkScheme())
     this.layer.setSettings(this.settings, this.providerCtx)
+    void this.syncWindowMaterial(this.settings.kind)
+  }
+
+  /** Best-effort: transparent mode asks the desktop window for the Win11
+   * acrylic material (so cleared surfaces reveal the desktop); any other
+   * mode restores the stock opaque backing. Unsupported hosts answer once
+   * and we stop asking. */
+  private async syncWindowMaterial(kind: string): Promise<void> {
+    const want: 'acrylic' | 'none' = kind === 'transparent' ? 'acrylic' : 'none'
+    if (this.materialNow === want) return
+    try {
+      const result = await setWindowMaterial(want)
+      if (result.ok) {
+        this.materialNow = want
+        if (this.materialSupport !== 'ok') {
+          this.materialSupport = 'ok'
+          this.emit()
+        }
+      } else if (want === 'acrylic') {
+        if (this.materialSupport !== 'unavailable') {
+          this.materialSupport = 'unavailable'
+          this.emit()
+        }
+        this.materialNow = this.materialNow ?? 'none'
+      }
+    } catch {
+      /* host unreachable: local preview keeps working */
+    }
   }
 
   /** Boot: load settings and paint. Scheme flips repaint (dark gradient
@@ -134,6 +165,7 @@ export class BgStudioRuntime {
     this.offScheme?.()
     this.layer.dispose()
     removeSurfaceStyle()
+    if (this.materialNow === 'acrylic') void setWindowMaterial('none').catch(() => {})
     this.listeners.clear()
   }
 }

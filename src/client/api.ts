@@ -49,6 +49,18 @@ export async function deleteImage(id: string): Promise<void> {
   if (!res.ok) throw new Error(`bg-studio delete ${res.status}`)
 }
 
+/** Ask the desktop window for a DWM system material (best-effort; web/CLI
+ * hosts answer {ok:false}). Returns the host's verdict. */
+export async function setWindowMaterial(material: 'acrylic' | 'mica' | 'none'): Promise<{ ok: boolean; detail: string }> {
+  const res = await fetch(`${BASE}/window-material`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ material }),
+  })
+  if (!res.ok) throw new Error(`bg-studio window-material ${res.status}`)
+  return res.json() as Promise<{ ok: boolean; detail: string }>
+}
+
 /** Current dark-scheme decision, from the same body attribute the app's own
  * ThemePresenter maintains (see the theme module's contract). */
 export function isDarkScheme(): boolean {
