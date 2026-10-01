@@ -1,0 +1,7 @@
+node_modules/
+# lib/ is committed on purpose: release tags must carry prebuilt bundles so
+# `github:...` installs work without a build step (pnpm never runs scripts
+# from untrusted sources by default).
+*.tgz
+.env
+.DS_Store

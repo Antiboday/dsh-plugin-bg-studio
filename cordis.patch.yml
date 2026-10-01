@@ -1,0 +1,15 @@
+# dsh-plugin-bg-studio bundle patch.
+#
+# Installing through the plugin manager (UI or `dsh plugin --profile <name> add`)
+# reconciles `dsh.profile.bundles` against installed packages; seeing this
+# declaration it appends dsh-plugin-bg-studio to the bundle stack and profile
+# boot merges this patch: a single `insert` of our own plugin row.
+# No official DSH component is replaced.
+#
+# The double-mount guard mirrors dsh-better-sidebar's pattern: if some other
+# enabled entry already mounts this package under a different id (for example
+# an aggregate bundle), this row backs off so routes are not registered twice.
+- insert:
+    - id: bg-studio
+      name: dsh-plugin-bg-studio
+      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-plugin-bg-studio' && e.options.id !== 'bg-studio' && !e.disabled)"
