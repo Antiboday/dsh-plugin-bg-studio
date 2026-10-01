@@ -33,21 +33,42 @@ export const videoRenderer: WallpaperRenderer = {
     const video = document.createElement('video')
     video.src = ctx.assetUrl(manifest.entry)
     video.loop = true
+    video.autoplay = true
     video.setAttribute('playsinline', '')
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'
     video.addEventListener('error', () => { /* keep the element; host logs 404s */ })
     el.append(video)
+    // Keep wanting the bundle's volume across remounts (autoplay policy may
+    // reject audible playback until a user gesture — see update()).
+    ;(video as HTMLVideoElement & { __wantVolume?: number }).__wantVolume = ctx.bundle.volume
     this.update?.(el, manifest, ctx)
   },
   update(el, _manifest, ctx) {
-    const video = el.querySelector('video')
+    const video = el.querySelector('video') as (HTMLVideoElement & { __wantVolume?: number; __gestureHook?: () => void }) | null
     if (!video) return
     // Hot-apply the wallpaper-local dials without remounting.
-    video.volume = ctx.bundle.volume
-    video.muted = ctx.bundle.volume === 0
     video.playbackRate = ctx.bundle.rate
     video.style.objectFit = ctx.bundle.fit
-    void video.play().catch(() => { /* autoplay guard: muted playback is allowed; ignore */ })
+    const want = ctx.bundle.volume
+    video.__wantVolume = want
+    video.volume = want
+    video.muted = want === 0
+    void video.play().catch(() => {
+      // Audible autoplay was rejected (desktop autoplay policy). Degrade to
+      // muted so the wallpaper keeps painting, then restore sound on the
+      // first user gesture anywhere in the app.
+      video.muted = true
+      void video.play().catch(() => { /* give up silently */ })
+      if (!video.__gestureHook) {
+        video.__gestureHook = () => {
+          video.volume = video.__wantVolume ?? 0
+          video.muted = (video.__wantVolume ?? 0) === 0
+          void video.play().catch(() => { /* still denied: stay muted */ })
+        }
+        window.addEventListener('pointerdown', video.__gestureHook, { once: true })
+        window.addEventListener('keydown', video.__gestureHook, { once: true })
+      }
+    })
   },
 }
 
@@ -59,9 +80,12 @@ export const webRenderer: WallpaperRenderer = {
     const frame = document.createElement('iframe')
     frame.src = ctx.assetUrl(manifest.entry)
     // Sandboxed: scripts run, but the frame gets no same-origin access to
-    // the app. Communication is postMessage-only (setState below).
+    // the app. Communication is postMessage-only (setState below). The
+    // element carries a theme-matched base so an unstyled page never paints
+    // hard white over a dark UI (the served HTML also gets a transparent-
+    // document style + WE API shim injected host-side).
     frame.setAttribute('sandbox', 'allow-scripts allow-pointer-lock')
-    frame.style.cssText = 'width:100%;height:100%;border:0;display:block;background:transparent'
+    frame.style.cssText = `width:100%;height:100%;border:0;display:block;background:${ctx.isDark() ? '#101318' : '#f2f4f8'}`
     el.append(frame)
   },
   setState(el, state, clip) {

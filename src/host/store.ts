@@ -24,8 +24,7 @@ import {
   type WallpaperManifest,
 } from '../shared/protocol.ts'
 
-/** Loose mime map for bundle assets (fall back to octet-stream). */
-const ASSET_MIME: Record<string, string> = {
+/** Loose mime map for bundle assets (fall back to octet-stream). */const ASSET_MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.htm': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -47,8 +46,51 @@ const ASSET_MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 }
 
-export class BgStudioStore {
-  constructor(private readonly dataDir: string) {}
+/**
+ * Rewrite an HTML entry for serving through the query-style asset route:
+ *
+ *  1. Relative src/href/url() references would resolve against the route's
+ *     directory (/api/dsh-bg-studio/) and lose the bundle id — rewrite them
+ *     into absolute asset URLs.
+ *  2. Inject a transparent-document base style (an unstyled web wallpaper
+ *     otherwise paints a hard white page) and a no-op Wallpaper Engine API
+ *     shim, so WE-authored pages that call wallpaperRegister* at init don't
+ *     crash before painting.
+ */
+const WE_SHIM = [
+  '<script>',
+  '(function(){var n=function(){};',
+  'window.wallpaperRegister=n;window.wallpaperRegisterAudioListener=n;',
+  'window.wallpaperRequestRandomFileForProperty=n;window.wallpaperRequestFileForProperty=n;',
+  'window.wallpaperPropertyListener=null;',
+  'window.addEventListener("message",function(ev){var d=ev.data||{};',
+  'if(d.source==="dsh-bg-studio"&&typeof window.wallpaperPropertyListener==="function")',
+  'window.wallpaperPropertyListener({name:"dshActivity",value:d});});',
+  '})();</script>',
+  '<style>html{background:transparent}</style>',
+].join('')
+
+function rewriteHtmlForServing(bundleId: string, html: string): string {
+  const toAbsolute = (raw: string): string => {
+    if (raw === '' || /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|\/|#|data:)/.test(raw)) return raw
+    const cleaned = raw.split('#')[0].split('?')[0]
+    if (cleaned === '') return raw
+    return `/api/dsh-bg-studio/asset?id=${encodeURIComponent(bundleId)}&path=${encodeURIComponent(cleaned)}`
+  }
+  let out = html.replace(/(\s(?:src|href)\s*=\s*)(["'])([^"']*)\2/gi, (m, attr, q, url) => `${attr}${q}${toAbsolute(url)}${q}`)
+  out = out.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (m, q, url) => `url(${q}${toAbsolute(url)}${q})`)
+  const injection = WE_SHIM
+  if (/<head[^>]*>/i.test(out)) {
+    out = out.replace(/<head[^>]*>/i, (m) => `${m}${injection}`)
+  } else if (/<html[^>]*>/i.test(out)) {
+    out = out.replace(/<html[^>]*>/i, (m) => `${m}${injection}`)
+  } else {
+    out = injection + out
+  }
+  return out
+}
+
+export class BgStudioStore {  constructor(private readonly dataDir: string) {}
 
   private get settingsPath(): string {
     return join(this.dataDir, 'settings.json')
@@ -274,7 +316,13 @@ export class BgStudioStore {
     if (!target.startsWith(base)) return null
     try {
       const bytes = await readFile(target)
-      return { bytes, mime: ASSET_MIME[extname(target).toLowerCase()] ?? 'application/octet-stream' }
+      const mime = ASSET_MIME[extname(target).toLowerCase()] ?? 'application/octet-stream'
+      if (mime.startsWith('text/html')) {
+        // Serve web-bundle entries rewritten for the query-style asset route.
+        const rewritten = rewriteHtmlForServing(id, bytes.toString('utf8'))
+        return { bytes: Buffer.from(rewritten, 'utf8'), mime }
+      }
+      return { bytes, mime }
     } catch {
       return null
     }
