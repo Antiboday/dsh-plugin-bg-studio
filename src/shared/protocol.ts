@@ -79,6 +79,8 @@ export interface BundleSettings {
   taskThreshold: number
   /** character: seconds between idle-clip rotations. */
   idleRotateSec: number
+  /** User muted the theme-mood prompt for this wallpaper. */
+  moodMuted: boolean
 }
 
 export const DEFAULT_BUNDLE_SETTINGS: BundleSettings = {
@@ -87,6 +89,7 @@ export const DEFAULT_BUNDLE_SETTINGS: BundleSettings = {
   fit: 'cover',
   taskThreshold: 3,
   idleRotateSec: 120,
+  moodMuted: false,
 }
 
 /** Full plugin settings. */
@@ -145,6 +148,7 @@ export function sanitizeBundleSettings(raw: unknown): BundleSettings {
     fit: ['cover', 'contain', 'fill'].includes(src.fit as string) ? (src.fit as BundleSettings['fit']) : 'cover',
     taskThreshold: clamp(Number(src.taskThreshold ?? 3), 1, 16),
     idleRotateSec: clamp(Number(src.idleRotateSec ?? 120), 5, 3600),
+    moodMuted: src.moodMuted === true,
   }
 }
 
@@ -267,6 +271,9 @@ export interface WallpaperManifest {
     busy: string[]
     overloaded: string[]
   }
+  /** Declared mood: which app theme this wallpaper looks best on. Omitted
+   * for neutral; video bundles can be auto-sampled when omitted. */
+  tone?: 'dark' | 'light'
 }
 
 /** Bundle listing entry returned by the host. */

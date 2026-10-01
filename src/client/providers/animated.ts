@@ -11,6 +11,7 @@ import type { BgStudioSettings, BundleSettings, WallpaperManifest } from '../../
 import { DEFAULT_BUNDLE_SETTINGS } from '../../shared/protocol.ts'
 import type { BackgroundProvider, ProviderContext } from '../background.ts'
 import { ActivityMachine } from '../activity.ts'
+import { maybePromptThemeMood } from '../mood.ts'
 import { canvasRenderer, characterRenderer, videoRenderer, webRenderer, type RendererCtx, type WallpaperRenderer } from '../renderers.ts'
 
 const RENDERERS: Record<string, WallpaperRenderer> = {
@@ -58,6 +59,36 @@ export const animatedProvider: BackgroundProvider = {
         dom.renderer = RENDERERS[manifest.type]
         if (!dom.renderer) return
         dom.renderer.mount(el, manifest, ctx)
+        // Theme-mood courtesy: declared tone wins; videos without one get a
+        // frame sampled after playback starts (needs readyState ≥ 2).
+        const prompt = (video: HTMLVideoElement | null): void => {
+          try {
+            maybePromptThemeMood({
+              manifest,
+              settings,
+              video,
+              onMute: () => pageCtx.muteMoodPrompt(settings.animated.mediaSource ?? ''),
+            })
+          } catch {
+            /* cosmetic feature; never break the wallpaper */
+          }
+        }
+        if (manifest.tone || manifest.type !== 'video') {
+          prompt(null)
+        } else {
+          const video = el.querySelector('video')
+          const trySample = (): void => {
+            const v = video as (HTMLVideoElement & { __moodTried?: boolean }) | null
+            if (!v || v.__moodTried) return
+            if (v.readyState >= 2) {
+              v.__moodTried = true
+              prompt(v)
+            } else {
+              setTimeout(trySample, 1200)
+            }
+          }
+          setTimeout(trySample, 1500)
+        }
         if (manifest.type === 'character' || manifest.type === 'web') {
           const clips = manifest.states?.idle ?? []
           activity.configure({
@@ -106,7 +137,9 @@ function fetchManifest(settings: BgStudioSettings, pageCtx: ProviderContext): Pr
   if (!id) return Promise.resolve(null)
   const cached = manifestCache.get(id)
   if (cached && Date.now() - cached.at < 60_000) return Promise.resolve(cached.manifest)
-  return fetch(pageCtx.manifestUrl(id))
+  // Manifests are control-plane data (tone, states…); never trust the HTTP
+  // cache for them — assets are immutable, manifests are editable.
+  return fetch(pageCtx.manifestUrl(id), { cache: 'no-store' })
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
     .then((manifest: WallpaperManifest) => {
       manifestCache.set(id, { manifest, at: Date.now() })

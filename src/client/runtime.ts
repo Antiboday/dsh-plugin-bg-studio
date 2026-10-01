@@ -33,6 +33,7 @@ export class BgStudioRuntime {
     manifestUrl,
     isDark: isDarkScheme,
     onSchemeChange: subscribeColorScheme,
+    muteMoodPrompt: (bundleId: string) => this.updateBundleSettings(bundleId, { moodMuted: true }),
   }
   /** Panels re-render on state changes (settings swaps, library edits). */
   private listeners = new Set<() => void>()

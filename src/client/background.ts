@@ -32,6 +32,8 @@ export interface ProviderContext {
   isDark(): boolean
   /** Subscribe to dark/light flips; returns the unsubscribe function. */
   onSchemeChange(callback: () => void): () => void
+  /** Persist "never ask the theme-mood question for this bundle". */
+  muteMoodPrompt(bundleId: string): void
 }
 
 /** One background mode implementation. mount runs on mode entry; update

@@ -4,5 +4,6 @@
   "description": "Test bundle: exercises the canvas renderer with the built-in nebula scene.",
   "author": "bg-studio",
   "type": "canvas",
-  "entry": "scene:nebula"
+  "entry": "scene:nebula",
+  "tone": "dark"
 }
