@@ -71,8 +71,16 @@ function primaryWindow(): ReturnType<MaterialWindow['getAllWindows']>[number] | 
   return alive.reduce((a, b) => (b.getBounds().width * b.getBounds().height > a.getBounds().width * a.getBounds().height ? b : a))
 }
 
-/** Apply a DWM material ('acrylic' | 'mica' | 'none') to the main window. */
+/** Apply a DWM material ('acrylic' | 'mica' | 'none') to the main window.
+ *
+ * Platform split: the official macOS build already creates its window with
+ * vibrancy + a transparent backing, so transparent mode needs NO call at all
+ * there — and setBackgroundMaterial is a Windows-only Electron API anyway.
+ * Reporting ok on darwin keeps the panel's status line truthful. */
 export function applyWindowMaterial(material: string): { ok: boolean; detail: string } {
+  if (process.platform === 'darwin') {
+    return { ok: true, detail: 'darwin-vibrancy-builtin' }
+  }
   if (!electronWindows) return { ok: false, detail: 'electron-unavailable' }
   const win = primaryWindow()
   if (!win) return { ok: false, detail: 'no-window' }
