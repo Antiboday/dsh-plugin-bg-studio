@@ -9,7 +9,7 @@
  * sanitizeSettings so a hand-edited or half-written file can never break the
  * boot; corrupt library entries are skipped, never thrown.
  */
-import { mkdir, readFile, readdir, rename, stat, unlink, writeFile, cp, rm } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile, cp, rm, open } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 import { join, normalize, extname } from 'node:path'
 import {
@@ -307,6 +307,13 @@ export class BgStudioStore {  constructor(private readonly dataDir: string) {}
   /** Serve one file from a bundle. Path is validated to stay inside the
    * bundle (no .., no absolute, no drive letters). */
   async readAsset(id: string, relPath: string): Promise<{ bytes: Buffer; mime: string } | null> {
+    return this.readAssetRange(id, relPath, undefined, undefined)
+  }
+
+  /** Range-aware variant for media streaming: `start`/`end` are inclusive
+   * byte offsets; both undefined means the whole file. Returns the slice,
+   * the mime, and the total size for Content-Range headers. */
+  async readAssetRange(id: string, relPath: string, start?: number, end?: number): Promise<{ bytes: Buffer; mime: string; total: number } | null> {
     if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id)) return null
     if (relPath === '' || relPath.includes('..') || /^[a-zA-Z]:/.test(relPath) || relPath.startsWith('/') || relPath.startsWith('\\')) {
       return null
@@ -315,14 +322,28 @@ export class BgStudioStore {  constructor(private readonly dataDir: string) {}
     const target = normalize(join(base, relPath))
     if (!target.startsWith(base)) return null
     try {
-      const bytes = await readFile(target)
+      const { size } = await stat(target)
       const mime = ASSET_MIME[extname(target).toLowerCase()] ?? 'application/octet-stream'
       if (mime.startsWith('text/html')) {
         // Serve web-bundle entries rewritten for the query-style asset route.
-        const rewritten = rewriteHtmlForServing(id, bytes.toString('utf8'))
-        return { bytes: Buffer.from(rewritten, 'utf8'), mime }
+        const rewritten = rewriteHtmlForServing(id, (await readFile(target)).toString('utf8'))
+        const bytes = Buffer.from(rewritten, 'utf8')
+        return { bytes, mime, total: bytes.length }
       }
-      return { bytes, mime }
+      if (start === undefined && end === undefined) {
+        return { bytes: await readFile(target), mime, total: size }
+      }
+      const from = Math.max(0, Math.min(start ?? 0, size - 1))
+      const to = Math.max(from, Math.min(end ?? size - 1, size - 1))
+      const length = to - from + 1
+      const handle = await open(target, 'r')
+      try {
+        const bytes = Buffer.alloc(length)
+        await handle.read(bytes, 0, length, from)
+        return { bytes, mime, total: size }
+      } finally {
+        await handle.close()
+      }
     } catch {
       return null
     }

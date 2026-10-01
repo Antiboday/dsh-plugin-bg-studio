@@ -306,17 +306,41 @@ export function makeRoutes({ store, maxImageBytes, logger, applyWindowMaterial, 
             writeJson(res, 400, { error: 'expected ?id=<bundle id>&path=<file>' })
             return
           }
-          const found = await store.readAsset(id, path)
+          // Media elements stream with Range requests; honoring them lets
+          // big movies be pulled in segments instead of one giant buffer.
+          // (Content goes into HTTP response headers only, never HTML.)
+          let start: number | undefined
+          let end: number | undefined
+          const rangeHeader = req.headers.range
+          if (typeof rangeHeader === 'string' && rangeHeader.startsWith('bytes=')) {
+            const spec = rangeHeader.slice('bytes='.length)
+            const dash = spec.indexOf('-')
+            if (dash >= 0) {
+              const rawStart = spec.slice(0, dash)
+              const rawEnd = spec.slice(dash + 1)
+              if (/^\d+$/.test(rawStart)) start = Number(rawStart)
+              if (/^\d+$/.test(rawEnd)) end = Number(rawEnd)
+            }
+          }
+          const found = await store.readAssetRange(id, path, start, end)
           if (!found) {
             writeJson(res, 404, { error: 'asset not found' })
             return
           }
-          res.writeHead(200, {
+          const partial = start !== undefined || end !== undefined
+          const headers: Record<string, string | number> = {
             'content-type': found.mime,
             'content-length': found.bytes.length,
-            // Bundle ids are random and bundles are immutable once imported.
+            // Bundle ids are random; assets are immutable once imported.
             'cache-control': 'public, max-age=86400',
-          })
+            'accept-ranges': 'bytes',
+          }
+          if (partial) {
+            const rangeStart = start ?? 0
+            const rangeEnd = Math.min(end ?? found.total - 1, found.total - 1)
+            headers['content-range'] = 'bytes ' + String(rangeStart) + '-' + String(rangeEnd) + '/' + String(found.total)
+          }
+          res.writeHead(partial ? 206 : 200, headers)
           res.end(found.bytes)
         } catch (error) {
           logger.warn(error)

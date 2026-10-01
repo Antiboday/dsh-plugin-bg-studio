@@ -32,6 +32,37 @@ type VideoDom = HTMLVideoElement & {
   __gestureHook?: () => void
   __recovering?: boolean
   __reloaded?: boolean
+  __freezeTimer?: ReturnType<typeof setInterval> | null
+}
+
+/** Freeze watchdog: a playing-but-not-advancing picture (stalled stream,
+ * dead decoder after a GPU hiccup — the "flicker then freezes" class of
+ * failure) recovers itself: play, then one reload. */
+function armFreezeWatchdog(video: VideoDom): void {
+  if (video.__freezeTimer) clearInterval(video.__freezeTimer)
+  let lastTime = video.currentTime
+  let lastAdvance = performance.now()
+  video.__freezeTimer = setInterval(() => {
+    if (video.currentTime !== lastTime) {
+      lastTime = video.currentTime
+      lastAdvance = performance.now()
+      return
+    }
+    if (video.paused || !video.isConnected) return
+    if (performance.now() - lastAdvance < 5000) return
+    // Frozen for 5s while "playing": try to unwedge.
+    lastAdvance = performance.now()
+    void video.play().catch(() => { /* fall through to reload */ })
+    if (!video.__reloaded) {
+      video.__reloaded = true
+      setTimeout(() => {
+        if (video.isConnected) {
+          video.load()
+          void video.play().catch(() => { /* pause watchdog continues */ })
+        }
+      }, 600)
+    }
+  }, 1500)
 }
 
 export const videoRenderer: WallpaperRenderer = {
@@ -72,10 +103,15 @@ export const videoRenderer: WallpaperRenderer = {
       }, 500)
     })
     el.append(video)
+    armFreezeWatchdog(video)
     // Keep wanting the bundle's volume across remounts (autoplay policy may
     // reject audible playback until a user gesture — see update()).
     video.__wantVolume = ctx.bundle.volume
     this.update?.(el, manifest, ctx)
+  },
+  dispose(el) {
+    const video = el.querySelector('video') as VideoDom | null
+    if (video?.__freezeTimer) clearInterval(video.__freezeTimer)
   },
   update(el, _manifest, ctx) {
     const video = el.querySelector('video') as VideoDom | null

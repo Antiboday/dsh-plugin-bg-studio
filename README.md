@@ -144,6 +144,7 @@ Test bundles live in `dev-assets/wallpapers/`; `dev-assets/we2dsh.py` is the hea
 
 ## Changelog
 
+- **0.4.4** — HTTP Range streaming for bundle assets (big movies pull in segments instead of one giant in-memory buffer) and a video **freeze watchdog**: a playing-but-not-advancing picture (stalled stream, decoder hiccup after a flicker) recovers itself within ~5 s.
 - **0.4.3** — video watchdog: external pauses (system sleep/wake, window-occlusion throttling, autoplay leftovers) auto-recover within a second; transient serve/decode errors self-heal with one reload.
 - **0.4.2** — full i18n via the DSH locale service (live language follow); localized type badges; English mode.
 - **0.4.1** — mood prompts on every mismatching activation (activation memory).
