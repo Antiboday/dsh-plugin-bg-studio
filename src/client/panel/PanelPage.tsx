@@ -3,9 +3,9 @@
  * the layout's `main` slot. Every control drives the runtime, which paints
  * instantly and persists debounced; nothing here talks to the host itself.
  */
-import { useCallback, useId, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { BgStudioRuntime } from '../runtime.ts'
-import { imageUrl } from '../api.ts'
+import { imageUrl, isDarkScheme, subscribeColorScheme } from '../api.ts'
 import { en, zh, type LocaleKey } from '../locales.ts'
 // Plain text at build time; injected once as a <style> below.
 import panelCss from './panel.css'
@@ -22,6 +22,21 @@ function ensurePanelStyle(): void {
   style.textContent = panelCss
   document.head.append(style)
   styleInjected = true
+}
+
+/** The panel's own base paint, as an INLINE style on purpose: injected
+ * stylesheets depend on load order and cached clients, an inline style
+ * always wins — the settings page must stay readable in every mode. */
+function panelBaseStyle(opaque: boolean, dark: boolean): Record<string, string> {
+  if (!opaque) return { background: 'transparent' }
+  return { background: dark ? '#151517' : '#f9fafb' }
+}
+
+/** Live dark-scheme state for the inline base paint. */
+function useDarkScheme(): boolean {
+  const [dark, setDark] = useState(isDarkScheme)
+  useEffect(() => subscribeColorScheme(() => setDark(isDarkScheme())), [])
+  return dark
 }
 
 function Field({ label, value, min, max, step, onChange, format }: {
@@ -64,13 +79,14 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
   const subscribe = useCallback((listener: () => void) => runtime.subscribe(listener), [runtime])
   const snapshot = useCallback(() => `${runtime.library.length}:${runtime.materialSupport}:${JSON.stringify(runtime.current)}`, [runtime])
   useSyncExternalStore(subscribe, snapshot)
+  const dark = useDarkScheme()
 
   const settings = runtime.current
   const fileRef = useRef<HTMLInputElement>(null)
 
   if (!settings) {
     return (
-      <div className="bg-studio-view" data-dsh-plugin="bg-studio">
+      <div className="bg-studio-view" data-dsh-plugin="bg-studio" style={panelBaseStyle(true, dark)}>
         <div className="bg-studio-inner">
           <div className="bg-studio-header">
             <h2>{tt('panel.title')}</h2>
@@ -99,7 +115,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
   const imageSelId = settings.kind === 'frosted' ? settings.frosted.imageId : settings.image.imageId
 
   return (
-    <div className="bg-studio-view" data-dsh-plugin="bg-studio">
+    <div className="bg-studio-view" data-dsh-plugin="bg-studio" style={panelBaseStyle(settings.panelOpaque !== false, dark)}>
       <div className="bg-studio-inner">
       <div className="bg-studio-header">
         <h2>{tt('panel.title')}</h2>
@@ -277,7 +293,15 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
       </div>
 
       <div className="bg-studio-actions">
-        <button type="button" className="bg-studio-button" onClick={() => { void runtime.reset() }}>
+        <label className="bg-studio-check">
+          <input
+            type="checkbox"
+            checked={settings.panelOpaque !== false}
+            onChange={(event) => runtime.update({ panelOpaque: event.target.checked })}
+          />
+          {tt('panel.opaque')}
+        </label>
+        <button type="button" className="bg-studio-button" disabled={settings.kind === 'none'} onClick={() => runtime.resetMode()}>
           {tt('action.reset')}
         </button>
       </div>

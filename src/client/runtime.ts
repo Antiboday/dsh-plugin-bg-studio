@@ -9,6 +9,7 @@
  * slider drags cost one PUT, not one per pixel.
  */
 import type { BgStudioSettings, ImageEntry, SettingsPayload } from '../shared/protocol.ts'
+import { DEFAULT_SETTINGS } from '../shared/protocol.ts'
 import { BackgroundLayer, type ProviderContext } from './background.ts'
 import { applySurfaceStyle, removeSurfaceStyle } from './surface.ts'
 import { deleteImage, fetchSettings, imageUrl, isDarkScheme, resetSettings, saveSettings, setWindowMaterial, subscribeColorScheme, uploadImage } from './api.ts'
@@ -135,6 +136,24 @@ export class BgStudioRuntime {
     }
     this.paint()
     this.emit()
+  }
+
+  /** Reset ONLY the current mode's parameters to that mode's defaults —
+   * the mode itself and the chosen library image stay, so a slider run
+   * too far is always one click from sane values. */
+  resetMode(): void {
+    if (!this.settings) return
+    const kind = this.settings.kind
+    if (kind === 'none') return
+    const patch: Partial<BgStudioSettings> = { [kind]: { ...DEFAULT_SETTINGS[kind] } }
+    // Keep the selected picture: it is a choice, not a "run too far" value.
+    if (kind === 'image' && this.settings.image.imageId) {
+      patch.image = { ...DEFAULT_SETTINGS.image, imageId: this.settings.image.imageId }
+    }
+    if (kind === 'frosted' && this.settings.frosted.imageId) {
+      patch.frosted = { ...DEFAULT_SETTINGS.frosted, imageId: this.settings.frosted.imageId }
+    }
+    this.update(patch)
   }
 
   async addImage(file: File): Promise<void> {

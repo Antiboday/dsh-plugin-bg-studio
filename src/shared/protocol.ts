@@ -75,6 +75,9 @@ export interface BgStudioSettings {
   frosted: FrostedSettings
   /** Reserved: see AnimatedReservedSettings. */
   animated: AnimatedReservedSettings
+  /** Keep the settings panel itself on an opaque base while the rest of the
+   * UI goes transparent/glass. Users may turn it off to theme the panel too. */
+  panelOpaque: boolean
 }
 
 /** One image library entry (metadata only; bytes are served by route). */
@@ -98,6 +101,7 @@ export const DEFAULT_SETTINGS: BgStudioSettings = {
   transparent: { surfaceOpacity: 0, scrim: 0.08 },
   frosted: { blur: 18, surfaceOpacity: 0.55, saturation: 1.25, imageId: null },
   animated: { mediaSource: null, respectReducedMotion: true },
+  panelOpaque: true,
 }
 
 /** Clamp n into [min, max]; NaN falls back to min. */
@@ -141,6 +145,7 @@ export function sanitizeSettings(raw: unknown): BgStudioSettings {
       mediaSource: typeof ani.mediaSource === 'string' ? ani.mediaSource : null,
       respectReducedMotion: ani.respectReducedMotion !== false,
     },
+    panelOpaque: src.panelOpaque !== false,
   }
 }
 
