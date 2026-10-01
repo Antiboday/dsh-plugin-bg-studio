@@ -1,0 +1,8 @@
+{
+  "format": "dsh-wallpaper/1",
+  "name": "Nebula Drift (built-in canvas scene)",
+  "description": "Test bundle: exercises the canvas renderer with the built-in nebula scene.",
+  "author": "bg-studio",
+  "type": "canvas",
+  "entry": "scene:nebula"
+}

@@ -14,6 +14,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import { BgStudioStore } from './store.ts'
 import { makeRoutes, type Route } from './routes.ts'
+import { mountActivityBridge } from './activity.ts'
 
 export const name = 'bgStudio'
 
@@ -105,6 +106,7 @@ export function apply(ctx: Context, config: Config): void {
       maxImageBytes: Math.max(1, config.maxImageMiB) * 1024 * 1024,
       logger: { warn: (error) => ctx.logger.warn(error) },
       applyWindowMaterial,
+      activity: mountActivityBridge(ctx),
     })
     ctx.effect(() => {
       const disposers = routes.map((route) => ctx.webServer.register(route))

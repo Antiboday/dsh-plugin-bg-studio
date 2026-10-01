@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-bg-studio",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Custom backgrounds for the DeepSeek Harness desktop/web UI: image, transparent and frosted-glass modes that never touch text colors, with a provider architecture that leaves room for animated wallpapers.",
   "type": "module",
   "license": "MIT",

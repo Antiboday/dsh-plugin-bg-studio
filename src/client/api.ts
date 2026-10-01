@@ -4,7 +4,7 @@
  * /api/... would break on sub-path deployments; relative paths track the
  * page wherever the host mounts it).
  */
-import type { BgStudioSettings, ImageEntry, SettingsPayload } from '../shared/protocol.ts'
+import type { ActivitySnapshot, BgStudioSettings, ImageEntry, SettingsPayload, WallpaperEntry } from '../shared/protocol.ts'
 
 const BASE = 'api/dsh-bg-studio'
 
@@ -59,6 +59,36 @@ export async function setWindowMaterial(material: 'acrylic' | 'mica' | 'none'): 
   })
   if (!res.ok) throw new Error(`bg-studio window-material ${res.status}`)
   return res.json() as Promise<{ ok: boolean; detail: string }>
+}
+
+/* ------------------------- wallpaper bundles ------------------------- */
+
+export function assetUrl(bundleId: string, path: string): string {
+  return `${BASE}/asset?id=${encodeURIComponent(bundleId)}&path=${encodeURIComponent(path)}`
+}
+
+export function manifestUrl(bundleId: string): string {
+  return assetUrl(bundleId, 'manifest.json')
+}
+
+export async function fetchWallpapers(): Promise<WallpaperEntry[]> {
+  const payload = await json<{ wallpapers: WallpaperEntry[] }>(`${BASE}/wallpapers`, { cache: 'no-store' })
+  return payload.wallpapers
+}
+
+export async function importWallpaper(dir: string): Promise<{ id: string }> {
+  const res = await fetch(`${BASE}/wallpapers?dir=${encodeURIComponent(dir)}`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `import ${res.status}`)
+  return res.json() as Promise<{ id: string }>
+}
+
+export async function deleteWallpaper(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/wallpapers?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`bg-studio wallpaper delete ${res.status}`)
+}
+
+export async function fetchActivity(threshold: number): Promise<ActivitySnapshot> {
+  return json<ActivitySnapshot>(`${BASE}/activity?threshold=${encodeURIComponent(String(threshold))}`, { cache: 'no-store' })
 }
 
 /** Current dark-scheme decision, from the same body attribute the app's own

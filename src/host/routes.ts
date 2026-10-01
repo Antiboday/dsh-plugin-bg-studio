@@ -15,6 +15,8 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { BgStudioStore } from './store.ts'
+import type { ActivityBridge } from './activity.ts'
+import { setDebugState } from './activity.ts'
 import { IMAGE_MIME_EXT } from '../shared/protocol.ts'
 
 /** One ctx.webServer registration: exact-path match, handler checks method. */
@@ -30,6 +32,9 @@ export const ROUTES = {
   images: '/api/dsh-bg-studio/images',
   image: '/api/dsh-bg-studio/image',
   windowMaterial: '/api/dsh-bg-studio/window-material',
+  wallpapers: '/api/dsh-bg-studio/wallpapers',
+  asset: '/api/dsh-bg-studio/asset',
+  activity: '/api/dsh-bg-studio/activity',
 } as const
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -123,6 +128,8 @@ export interface RouteDeps {
   logger: { warn: (error: unknown) => void }
   /** Best-effort DWM material for the desktop window (see host index). */
   applyWindowMaterial?: (material: string) => { ok: boolean; detail: string }
+  /** Agent-activity bridge for interactive wallpapers. */
+  activity?: ActivityBridge
 }
 
 async function settingsView(store: BgStudioStore): Promise<{ settings: unknown; images: unknown }> {
@@ -131,7 +138,7 @@ async function settingsView(store: BgStudioStore): Promise<{ settings: unknown; 
 
 /** Build every route object for ctx.webServer.register. webServer matches by
  * path only, so each path is ONE handler that dispatches on req.method. */
-export function makeRoutes({ store, maxImageBytes, logger, applyWindowMaterial }: RouteDeps): Route[] {
+export function makeRoutes({ store, maxImageBytes, logger, applyWindowMaterial, activity }: RouteDeps): Route[] {
   return [
     {
       kind: 'exact',
@@ -236,6 +243,106 @@ export function makeRoutes({ store, maxImageBytes, logger, applyWindowMaterial }
             return
           }
           writeJson(res, 405, { error: `method not allowed (${req.method})` })
+        } catch (error) {
+          logger.warn(error)
+          writeJson(res, 500, { error: String(error) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: ROUTES.wallpapers,
+      handler: async (req, res) => {
+        try {
+          if (req.method === 'GET') {
+            writeJson(res, 200, { wallpapers: await store.listWallpapers() })
+            return
+          }
+          if (req.method === 'POST') {
+            const dir = queryParam(req, 'dir')
+            if (!dir) {
+              writeJson(res, 400, { error: 'expected ?dir=<absolute bundle directory>' })
+              return
+            }
+            try {
+              const id = await store.importWallpaper(dir)
+              writeJson(res, 201, { id })
+            } catch (error) {
+              writeJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
+            }
+            return
+          }
+          if (req.method === 'DELETE') {
+            const id = queryParam(req, 'id')
+            if (!id) {
+              writeJson(res, 400, { error: 'expected ?id=<bundle id>' })
+              return
+            }
+            const ok = await store.deleteWallpaper(id)
+            writeJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'unknown bundle' })
+            return
+          }
+          writeJson(res, 405, { error: `method not allowed (${req.method})` })
+        } catch (error) {
+          logger.warn(error)
+          writeJson(res, 500, { error: String(error) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: ROUTES.asset,
+      handler: async (req, res) => {
+        try {
+          if (req.method !== 'GET') {
+            writeJson(res, 405, { error: `method not allowed (${req.method})` })
+            return
+          }
+          const id = queryParam(req, 'id')
+          const path = queryParam(req, 'path') ?? ''
+          if (!id) {
+            writeJson(res, 400, { error: 'expected ?id=<bundle id>&path=<file>' })
+            return
+          }
+          const found = await store.readAsset(id, path)
+          if (!found) {
+            writeJson(res, 404, { error: 'asset not found' })
+            return
+          }
+          res.writeHead(200, {
+            'content-type': found.mime,
+            'content-length': found.bytes.length,
+            // Bundle ids are random and bundles are immutable once imported.
+            'cache-control': 'public, max-age=86400',
+          })
+          res.end(found.bytes)
+        } catch (error) {
+          logger.warn(error)
+          writeJson(res, 500, { error: String(error) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: ROUTES.activity,
+      handler: async (req, res) => {
+        try {
+          if (req.method !== 'GET') {
+            writeJson(res, 405, { error: `method not allowed (${req.method})` })
+            return
+          }
+          if (!activity) {
+            writeJson(res, 200, { activeTasks: 0, state: 'idle' })
+            return
+          }
+          // Test hook: ?debugState=idle|busy|overloaded (or none to clear).
+          const debug = queryParam(req, 'debugState')
+          if (debug !== undefined) {
+            if (debug === '' || debug === 'none') setDebugState(null)
+            else if (debug === 'idle' || debug === 'busy' || debug === 'overloaded') setDebugState(debug)
+          }
+          const threshold = Number(queryParam(req, 'threshold') ?? 3)
+          writeJson(res, 200, activity.snapshot(Number.isFinite(threshold) ? Math.max(1, threshold) : 3))
         } catch (error) {
           logger.warn(error)
           writeJson(res, 500, { error: String(error) })

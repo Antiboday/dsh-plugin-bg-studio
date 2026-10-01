@@ -73,16 +73,16 @@ const MODES: Array<{ kind: 'none' | 'image' | 'transparent' | 'frosted' | 'anima
   { kind: 'frosted', nameKey: 'mode.frosted', hintKey: 'mode.frosted.hint' },
   { kind: 'animated', nameKey: 'mode.animated', hintKey: 'mode.animated.hint' },
 ]
-
 export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.ReactElement {
   ensurePanelStyle()
   const subscribe = useCallback((listener: () => void) => runtime.subscribe(listener), [runtime])
-  const snapshot = useCallback(() => `${runtime.library.length}:${runtime.materialSupport}:${JSON.stringify(runtime.current)}`, [runtime])
+  const snapshot = useCallback(() => `${runtime.library.length}:${runtime.wallpaperLibrary.length}:${runtime.materialSupport}:${JSON.stringify(runtime.current)}`, [runtime])
   useSyncExternalStore(subscribe, snapshot)
   const dark = useDarkScheme()
 
   const settings = runtime.current
   const fileRef = useRef<HTMLInputElement>(null)
+  const wallpaperDir = useRef('')
 
   if (!settings) {
     return (
@@ -124,16 +124,14 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
 
       <div className="bg-studio-modes">
         {MODES.map((mode) => {
-          const disabled = mode.kind === 'animated'
-          const active = !disabled && settings.kind === mode.kind
+          const active = settings.kind === mode.kind
           return (
             <button
               key={mode.kind}
               type="button"
               className="bg-studio-mode"
               data-active={active}
-              data-disabled={disabled}
-              onClick={() => { if (!disabled) runtime.update({ kind: mode.kind }) }}
+              onClick={() => runtime.update({ kind: mode.kind })}
             >
               <span className="bg-studio-mode-name">{tt(mode.nameKey)}</span>
               <span className="bg-studio-mode-hint">{tt(mode.hintKey)}</span>
@@ -250,6 +248,74 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
             </select>
             <span />
           </div>
+        </div>
+      )}
+
+      {settings.kind === 'animated' && (
+        <div className="bg-studio-section">
+          <h3>{tt('wallpaper.library')}</h3>
+          <div className="bg-studio-actions">
+            <input
+              type="text"
+              className="bg-studio-path"
+              placeholder={tt('wallpaper.dirPlaceholder')}
+              onChange={(event) => { wallpaperDir.current = event.target.value }}
+            />
+            <button type="button" className="bg-studio-button" onClick={() => { if (wallpaperDir.current) void runtime.addWallpaper(wallpaperDir.current) }}>
+              {tt('wallpaper.import')}
+            </button>
+          </div>
+          {runtime.wallpaperLibrary.length === 0 ? (
+            <p className="bg-studio-note">{tt('wallpaper.empty')}</p>
+          ) : (
+            <div className="bg-studio-library">
+              {runtime.wallpaperLibrary.map((wp) => (
+                <div
+                  key={wp.id}
+                  className="bg-studio-wp"
+                  data-selected={settings.animated.mediaSource === wp.id}
+                  onClick={() => runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } })}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => { if (event.key === 'Enter') runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } }) }}
+                >
+                  <span className="bg-studio-wp-type">{wp.type}</span>
+                  <span className="bg-studio-wp-name">{wp.error ? `${wp.name}（${tt('wallpaper.bad')}）` : wp.name}</span>
+                  <button
+                    type="button"
+                    className="bg-studio-thumb-del"
+                    title={tt('library.delete')}
+                    onClick={(event) => { event.stopPropagation(); if (window.confirm(`${tt('library.delete')} ${wp.name}?`)) void runtime.removeWallpaper(wp.id) }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <Field
+            label={tt('wallpaper.threshold')}
+            value={settings.animated.taskThreshold}
+            min={1} max={16} step={1}
+            onChange={(v) => runtime.update({ animated: { ...settings.animated, taskThreshold: Math.round(v) } })}
+            format={(v) => String(Math.round(v))}
+          />
+          <Field
+            label={tt('wallpaper.rotate')}
+            value={settings.animated.idleRotateSec}
+            min={10} max={600} step={10}
+            onChange={(v) => runtime.update({ animated: { ...settings.animated, idleRotateSec: Math.round(v) } })}
+            format={(v) => `${Math.round(v)}s`}
+          />
+          <label className="bg-studio-check">
+            <input
+              type="checkbox"
+              checked={settings.animated.respectReducedMotion}
+              onChange={(event) => runtime.update({ animated: { ...settings.animated, respectReducedMotion: event.target.checked } })}
+            />
+            {tt('wallpaper.reducedMotion')}
+          </label>
+          <p className="bg-studio-note">{tt('wallpaper.note')}</p>
         </div>
       )}
 

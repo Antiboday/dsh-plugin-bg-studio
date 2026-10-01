@@ -223,7 +223,8 @@ body[data-ds-dark-theme] .bg-studio-view {
 }
 
 select.bg-studio-select,
-input[type='color'].bg-studio-color {
+input[type='color'].bg-studio-color,
+input[type='text'].bg-studio-path {
   font: inherit;
   font-size: 12.5px;
   color: inherit;
@@ -231,4 +232,53 @@ input[type='color'].bg-studio-color {
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
   border-radius: 6px;
   padding: 4px 6px;
+}
+
+.bg-studio-path {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Wallpaper bundle cards */
+.bg-studio-wp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.bg-studio-wp[data-selected='true'] {
+  border-color: color-mix(in srgb, currentColor 65%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.bg-studio-wp-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  opacity: 0.85;
+}
+
+.bg-studio-wp-name {
+  flex: 1;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bg-studio-library .bg-studio-wp {
+  margin-bottom: 0;
+}
+
+.bg-studio-library {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }

@@ -16,10 +16,7 @@ export type BackgroundKind =
   | 'image'
   | 'transparent'
   | 'frosted'
-  /** Reserved for the animated wallpaper family (video / canvas / web view /
-   * shader). Not selectable in this version; the settings section below
-   * already carries what a future provider needs. */
-  // | 'animated'
+  | 'animated'
 
 /** Image background parameters. */
 export interface ImageBackgroundSettings {
@@ -61,10 +58,14 @@ export interface FrostedSettings {
 /** Reserved section for the future animated provider, kept in the wire
  * format now so old installs keep working when it ships. */
 export interface AnimatedReservedSettings {
-  /** Resource reference (library media id or URL) of the future wallpaper. */
+  /** Id of the active wallpaper bundle in the host library. */
   mediaSource: string | null
   /** Honor the OS reduced-motion preference by freezing the wallpaper. */
   respectReducedMotion: boolean
+  /** Task-count threshold: 0..N tasks = busy, above = overloaded. */
+  taskThreshold: number
+  /** Seconds between idle-clip rotations for character wallpapers. */
+  idleRotateSec: number
 }
 
 /** Full plugin settings. */
@@ -100,7 +101,7 @@ export const DEFAULT_SETTINGS: BgStudioSettings = {
   image: { imageId: null, fit: 'cover', opacity: 1, blur: 0, dim: 0.25, tint: null },
   transparent: { surfaceOpacity: 0, scrim: 0.08 },
   frosted: { blur: 18, surfaceOpacity: 0.55, saturation: 1.25, imageId: null },
-  animated: { mediaSource: null, respectReducedMotion: true },
+  animated: { mediaSource: null, respectReducedMotion: true, taskThreshold: 3, idleRotateSec: 120 },
   panelOpaque: true,
 }
 
@@ -118,7 +119,7 @@ export function sanitizeSettings(raw: unknown): BgStudioSettings {
   const tra = (src.transparent && typeof src.transparent === 'object' ? src.transparent : {}) as Record<string, unknown>
   const fro = (src.frosted && typeof src.frosted === 'object' ? src.frosted : {}) as Record<string, unknown>
   const ani = (src.animated && typeof src.animated === 'object' ? src.animated : {}) as Record<string, unknown>
-  const kind = ['none', 'image', 'transparent', 'frosted'].includes(src.kind as string)
+  const kind = ['none', 'image', 'transparent', 'frosted', 'animated'].includes(src.kind as string)
     ? (src.kind as BackgroundKind)
     : 'none'
   return {
@@ -142,8 +143,10 @@ export function sanitizeSettings(raw: unknown): BgStudioSettings {
       imageId: typeof fro.imageId === 'string' ? fro.imageId : null,
     },
     animated: {
-      mediaSource: typeof ani.mediaSource === 'string' ? ani.mediaSource : null,
+      mediaSource: typeof ani.mediaSource === 'string' && ani.mediaSource !== '' ? ani.mediaSource : null,
       respectReducedMotion: ani.respectReducedMotion !== false,
+      taskThreshold: clamp(Number(ani.taskThreshold ?? 3), 1, 32),
+      idleRotateSec: clamp(Number(ani.idleRotateSec ?? 120), 5, 3600),
     },
     panelOpaque: src.panelOpaque !== false,
   }
@@ -164,4 +167,76 @@ export const IMAGE_MIME_EXT: Record<string, string> = {
   'image/gif': 'gif',
   'image/bmp': 'bmp',
   'image/avif': 'avif',
+}
+
+/* ------------------------------------------------------------------------- *
+ * Wallpaper bundles — the "dsh-wallpaper/1" package format.
+ *
+ * A bundle is a DIRECTORY inside the host library:
+ *   <storages>/dsh-plugin-bg-studio/wallpapers/<id>/
+ *       manifest.json   (this format)
+ *       ...assets       (html/js/mp4/png/json — served by the asset route)
+ *
+ * `type` selects the renderer:
+ *   video      entry = video file inside the bundle        → <video>
+ *   web        entry = html file inside the bundle         → sandboxed iframe
+ *   canvas     entry = "scene:<name>" of a built-in scene  → canvas renderer
+ *   character  entry = mascot.json (sprite sheet + states) → state machine
+ *
+ * character's mascot.json describes the sprite sheet and per-state clips:
+ *   { "sheet": "sheet.png", "frameW": 128, "frameH": 128,
+ *     "clips": { "idle-a": [0,24], "idle-b": [24,48], "work": [48,72] },
+ *     "fps": 12 }
+ * States come from the manifest's `states` map below; `idle` lists several
+ * clips that rotate (interval from settings), busy/overloaded map task
+ * counts (threshold from settings).
+ * ------------------------------------------------------------------------- */
+
+export const WALLPAPER_FORMAT = 'dsh-wallpaper/1'
+
+export type WallpaperType = 'video' | 'web' | 'canvas' | 'character'
+
+/** One wallpaper bundle's manifest (manifest.json). */
+export interface WallpaperManifest {
+  format: typeof WALLPAPER_FORMAT
+  name: string
+  description: string
+  author: string
+  type: WallpaperType
+  entry: string
+  /** character-type state mapping; clip names index mascot.json clips. */
+  states?: {
+    idle: string[]
+    busy: string[]
+    overloaded: string[]
+  }
+}
+
+/** Bundle listing entry returned by the host. */
+export interface WallpaperEntry {
+  id: string
+  name: string
+  type: WallpaperType
+  description: string
+  author: string
+  entry: string
+  /** Parse/validation problem, when the manifest is unusable. */
+  error?: string
+}
+
+/** Mascot descriptor for character wallpapers (mascot.json). */
+export interface MascotSpec {
+  sheet: string
+  frameW: number
+  frameH: number
+  fps: number
+  clips: Record<string, [number, number]>
+}
+
+/** Live agent-activity snapshot served by the host bridge. */
+export interface ActivitySnapshot {
+  /** Sessions with a started-but-not-finished turn. */
+  activeTasks: number
+  /** Derived machine state, using the caller's threshold. */
+  state: 'idle' | 'busy' | 'overloaded'
 }

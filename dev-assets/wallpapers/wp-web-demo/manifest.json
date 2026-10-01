@@ -1,0 +1,8 @@
+{
+  "format": "dsh-wallpaper/1",
+  "name": "Web Demo (iframe + activity bridge)",
+  "description": "Test bundle: sandboxed iframe wallpaper that displays the live agent-activity state pushed via postMessage.",
+  "author": "bg-studio",
+  "type": "web",
+  "entry": "index.html"
+}

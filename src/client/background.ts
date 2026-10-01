@@ -18,11 +18,16 @@ import type { BgStudioSettings } from '../shared/protocol.ts'
 import { imageProvider } from './providers/image.ts'
 import { transparentProvider } from './providers/transparent.ts'
 import { frostedProvider } from './providers/frosted.ts'
+import { animatedProvider } from './providers/animated.ts'
 
 /** What providers may need from the host page. */
 export interface ProviderContext {
   /** Same-origin URL serving a library image by id. */
   imageUrl(id: string): string
+  /** Same-origin URL serving one file inside a wallpaper bundle. */
+  assetUrl(bundleId: string, path: string): string
+  /** Same-origin URL serving a bundle's manifest.json. */
+  manifestUrl(bundleId: string): string
   /** Current DSH dark-scheme decision. */
   isDark(): boolean
   /** Subscribe to dark/light flips; returns the unsubscribe function. */
@@ -42,7 +47,7 @@ const PROVIDERS: Record<string, BackgroundProvider> = {
   image: imageProvider,
   transparent: transparentProvider,
   frosted: frostedProvider,
-  // 'animated' registers here when the wallpaper provider ships.
+  animated: animatedProvider,
 }
 
 const LAYER_ID = 'dsh-bg-studio-layer'

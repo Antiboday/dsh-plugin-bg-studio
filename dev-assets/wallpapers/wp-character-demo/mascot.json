@@ -1,0 +1,12 @@
+{
+  "sheet": "sheet.png",
+  "frameW": 128,
+  "frameH": 128,
+  "fps": 8,
+  "clips": {
+    "idle-a": [0, 8],
+    "idle-b": [8, 16],
+    "work": [16, 24],
+    "panic": [24, 32]
+  }
+}

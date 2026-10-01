@@ -8,17 +8,18 @@
  * locally at once (instant preview) and persists to the host debounced, so
  * slider drags cost one PUT, not one per pixel.
  */
-import type { BgStudioSettings, ImageEntry, SettingsPayload } from '../shared/protocol.ts'
+import type { BgStudioSettings, ImageEntry, SettingsPayload, WallpaperEntry } from '../shared/protocol.ts'
 import { DEFAULT_SETTINGS } from '../shared/protocol.ts'
 import { BackgroundLayer, type ProviderContext } from './background.ts'
 import { applySurfaceStyle, removeSurfaceStyle } from './surface.ts'
-import { deleteImage, fetchSettings, imageUrl, isDarkScheme, resetSettings, saveSettings, setWindowMaterial, subscribeColorScheme, uploadImage } from './api.ts'
+import { assetUrl, deleteImage, deleteWallpaper, fetchSettings, fetchWallpapers, imageUrl, importWallpaper, isDarkScheme, manifestUrl, resetSettings, saveSettings, setWindowMaterial, subscribeColorScheme, uploadImage } from './api.ts'
 
 const PERSIST_DEBOUNCE_MS = 350
 
 export class BgStudioRuntime {
   private settings: BgStudioSettings | null = null
   private images: ImageEntry[] = []
+  private wallpapers: WallpaperEntry[] = []
   private layer = new BackgroundLayer()
   private saveTimer: ReturnType<typeof setTimeout> | null = null
   private offScheme: (() => void) | null = null
@@ -27,6 +28,8 @@ export class BgStudioRuntime {
   private materialNow: 'acrylic' | 'none' | null = null
   private providerCtx: ProviderContext = {
     imageUrl,
+    assetUrl,
+    manifestUrl,
     isDark: isDarkScheme,
     onSchemeChange: subscribeColorScheme,
   }
@@ -39,6 +42,10 @@ export class BgStudioRuntime {
 
   get library(): ImageEntry[] {
     return this.images
+  }
+
+  get wallpaperLibrary(): WallpaperEntry[] {
+    return this.wallpapers
   }
 
   subscribe(listener: () => void): () => void {
@@ -112,7 +119,36 @@ export class BgStudioRuntime {
     }
     if (document.body) begin()
     else document.addEventListener('DOMContentLoaded', begin, { once: true })
+    void this.refreshWallpapers()
     this.emit()
+  }
+
+  /** Reload the wallpaper-bundle listing (after start / import / delete). */
+  async refreshWallpapers(): Promise<void> {
+    try {
+      this.wallpapers = await fetchWallpapers()
+    } catch {
+      this.wallpapers = []
+    }
+    this.emit()
+  }
+
+  /** Import a bundle from a local directory and select it. */
+  async addWallpaper(dir: string): Promise<void> {
+    await importWallpaper(dir)
+    await this.refreshWallpapers()
+    // Auto-select the freshly imported bundle.
+    if (this.settings && this.settings.kind === 'animated' && !this.settings.animated.mediaSource) {
+      this.update({ animated: { ...this.settings.animated, mediaSource: this.wallpapers[this.wallpapers.length - 1]?.id ?? null } })
+    }
+  }
+
+  async removeWallpaper(id: string): Promise<void> {
+    await deleteWallpaper(id)
+    if (this.settings?.animated.mediaSource === id) {
+      this.update({ animated: { ...this.settings.animated, mediaSource: null } })
+    }
+    await this.refreshWallpapers()
   }
 
   /** Apply a patch locally now, persist debounced. */

@@ -1,0 +1,13 @@
+{
+  "format": "dsh-wallpaper/1",
+  "name": "Character Demo (sprite + task states)",
+  "description": "Test bundle: sprite-sheet mascot reacting to agent tasks. idle-a = float, idle-b = wave, work = type, panic = shake.",
+  "author": "bg-studio",
+  "type": "character",
+  "entry": "mascot.json",
+  "states": {
+    "idle": ["idle-a", "idle-b"],
+    "busy": ["work"],
+    "overloaded": ["panic"]
+  }
+}
