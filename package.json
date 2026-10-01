@@ -1,9 +1,27 @@
 {
   "name": "dsh-plugin-bg-studio",
   "version": "0.4.2",
-  "description": "Custom backgrounds for the DeepSeek Harness desktop/web UI: image, transparent and frosted-glass modes that never touch text colors, with a provider architecture that leaves room for animated wallpapers.",
+  "description": "Background Studio for DeepSeek Harness (DSH): picture, transparent and frosted-glass modes plus an animated wallpaper engine — video / web / canvas / task-reactive character bundles, one-click Wallpaper Engine workshop import, theme-mood courtesy prompts. Text colors are never touched.",
   "type": "module",
   "license": "MIT",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "wallpaper",
+    "background",
+    "wallpaper-engine",
+    "theme"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Antiboday/dsh-plugin-bg-studio.git"
+  },
+  "homepage": "https://github.com/Antiboday/dsh-plugin-bg-studio#readme",
+  "bugs": {
+    "url": "https://github.com/Antiboday/dsh-plugin-bg-studio/issues"
+  },
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

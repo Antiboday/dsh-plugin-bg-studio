@@ -1,120 +1,147 @@
-# dsh-plugin-bg-studio
+# Background Studio for DeepSeek Harness
 
-DeepSeek Harness (DSH) 桌面端 / Web UI 的背景自定义插件：**图片背景、透明、毛玻璃**三种模式自由切换，字体颜色始终跟随 DSH 深浅色主题不受影响。架构上为**动态壁纸**（视频 / Canvas / 网页 / Shader）预留了完整的 Provider 扩展位。
+**Custom backgrounds and an animated wallpaper engine for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)** — pictures, transparency, frosted glass, and a Wallpaper-Engine-style bundle system with video / web / canvas / task-reactive character wallpapers. One design rule above all: **your text colors are never touched** — readability always follows the app's own light/dark theme.
 
-## 功能
+[中文文档](README.zh-CN.md)
 
-| 模式 | 效果 | 可调参数 |
-|---|---|---|
-| 默认 | DSH 原生外观（像素级还原） | — |
-| 图片 | 自定义图片铺在全部内容之下 | 图片库选择、填充方式（铺满/完整/平铺）、不透明度、模糊、压暗遮罩、遮罩颜色 |
-| 透明 | 内容表面全透明，极简悬浮观感 | 表面保留底色、可读性蒙层 |
-| 毛玻璃 | 表面呈磨砂玻璃，透出被模糊的背景 | 玻璃模糊度、底色浓度、色彩饱和、可选背景图（默认内置渐变） |
-| 动态（规划中） | 动态壁纸 | 界面已预留入口；落地时新增一个 Provider 模块即可 |
+> Screenshots welcome — drop them into `docs/screenshots/` and reference them here.
 
-核心契约：**只改背景与表面填充透明度，绝不触碰任何文字颜色 token**（`--dsw-alias-label-*` 全程原值），深浅色切换始终由 DSH 主题系统主导。
+## Features
 
-## 安装（DSH 桌面版）
+### Four background modes
 
-构建产物已包含在发布包中，无需自行编译。
+| Mode | What you get |
+|---|---|
+| **Picture** | Your own image under everything: fill modes (cover / contain / tile), opacity, blur, readability scrim (strength + custom color) |
+| **Transparent** | Surfaces go see-through; on Windows 11 desktop builds the window gets the system acrylic material attempted so cleared surfaces can reveal the desktop |
+| **Frosted glass** | Surfaces become translucent glass over a (built-in or picture) backdrop: blur, fill, saturation — with stacked-layer alpha compensation so the sidebar reads exactly as dialed |
+| **Animated** | Full wallpaper engine — see below |
 
-方式一：本地包（推荐）
-1. `pnpm pack` 生成 `dsh-plugin-bg-studio-0.1.0.tgz`（仓库 release 已附）
-2. DSH 桌面版 → 插件管理界面 → 输入 tgz 的**绝对路径**安装
-3. 重启 DSH
+Every mode is one click away in the sidebar **Background** panel. Changes apply instantly and persist automatically. "Reset current mode" restores sane defaults per mode (mode and chosen picture are kept).
 
-方式二：npm（发布后）
+### The animated wallpaper engine
+
+Wallpapers are **bundles** (`dsh-wallpaper/1` format: a folder with a `manifest.json` + assets) with four renderer types:
+
+- **video** — any mp4/webm the browser can decode; per-wallpaper volume / speed / fit (hot-applied, no restart). Audible autoplay rejected by the desktop policy? It degrades to muted and restores sound on your first click.
+- **web** — a sandboxed iframe running any HTML page. Served HTML gets relative-URL rewriting plus a **Wallpaper Engine API shim** (`wallpaperRegister*` etc.), so most WE web wallpapers run unmodified — and every page can opt into live agent activity via `window` message events.
+- **canvas** — built-in programmed scenes (ships with a drifting-nebula starfield); adding a scene is one table entry.
+- **character** — a sprite-sheet mascot wired to a **task state machine**: idle (multiple clips rotating on a timer), busy, overloaded (threshold-configurable) — your companion naps, types and panics with your agents. The state bridge reads only turn metadata, never transcript content.
+
+### Wallpaper Engine import
+
+Point the panel at your Steam workshop content folder (`…\steamapps\workshop\content\431960`) and it lists everything: video and web wallpapers convert into bundles **in one click** (nothing is written into the workshop folder; video bundles copy just the movie file). Scene-type wallpapers are flagged as unsupported with the reason. A CLI converter (`dev-assets/we2dsh.py`) is included for headless use.
+
+### Theme-mood courtesy prompts
+
+Activate a wallpaper that clearly belongs to the opposite scheme — a bright movie on a dark UI, a night scene under a light UI — and a small toast offers a one-click theme flip through the app's official settings channel:
+
+> *"The wallpaper has gone stargazing, but the UI left the lights on. Turn them off together?"* 🌙
+> *"The wallpaper woke up to daylight, but the UI is still in bed. Open the curtains together?"* ☀️
+
+Tone comes from the manifest, or is auto-detected by sampling video luminance. Every activation of a mismatching wallpaper re-asks; the only mute is your explicit per-wallpaper "never ask".
+
+### Fit and finish
+
+- **Full i18n** through the DSH locale service — the whole panel (and the prompts) follow the app's language setting live, English and Chinese out of the box.
+- The plugin panel and DSH's own system dialogs each have an **independent opacity switch** (both default to opaque in transparent/glass modes, so settings stay readable).
+- The settings panel scrolls itself inside the app's clipping layout, and native select popups honor dark mode.
+- **Privacy by design**: all routes are loopback-fenced; the activity bridge reads turn event metadata only — never session content.
+
+## Install
+
+**From a release tarball** (recommended): download the `.tgz` from [releases](../../releases), then in DSH open *Plugins → install from local package* and give the tarball's absolute path. **Fully quit DSH (tray included) and reopen** — plugin code is cached aggressively.
+
+**From GitHub** (tagged source carries prebuilt `lib/`, no build needed):
+
+```text
+github:<user>/dsh-plugin-bg-studio#v0.4.2
+```
+
+**From npm** (if published):
+
 ```text
 dsh-plugin-bg-studio
 ```
 
-方式三：GitHub
-```text
-github:<user>/dsh-bg-studio#v0.1.0
+> ⚠️ If the DSH plugin manager rejects install/uninstall with
+> `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` naming some unrelated package, a
+> same-day-published dependency is blocking the whole lockfile (a 24h
+> supply-chain cooldown). Fully quit DSH and retry after the window, or see
+> [Troubleshooting](#troubleshooting).
+
+## Writing a wallpaper bundle
+
+A bundle is a directory:
+
+```
+my-wallpaper/
+├── manifest.json
+└── …assets (movie / html / sprite sheet / scene id)
 ```
 
-安装后侧边栏"全局面板"会出现"背景"入口。
+```jsonc
+// manifest.json
+{
+  "format": "dsh-wallpaper/1",
+  "name": "My Wallpaper",
+  "description": "…",
+  "author": "you",
+  "type": "video",            // video | web | canvas | character
+  "entry": "bg.mp4",          // video: file · web: html file · canvas: "scene:nebula" · character: mascot.json
+  "tone": "dark",             // optional: dark | light — enables the theme-mood prompt
+  "states": {                 // character only: clip names referenced by mascot.json
+    "idle": ["nap", "wag"],
+    "busy": ["type"],
+    "overloaded": ["panic"]
+  }
+}
+```
 
-## 使用
+Character bundles add a `mascot.json` (sprite-sheet spec: frame size, fps, named clip ranges) — see `dev-assets/wallpapers/wp-character-demo/` for a complete working example of every type.
 
-- 侧边栏 → **背景** 面板：选择模式、调节参数，全部即时生效并自动保存（防抖持久化到 Host）。
-- 图片库：上传（PNG/JPEG/WebP/GIF/BMP/AVIF，默认上限 20MB/张）、预览、点选、删除；新上传的图片在图片/毛玻璃模式下自动选中。
-- "恢复默认"一键回到 DSH 原生外观。
+**Web wallpapers** receive live agent activity as window messages:
 
-数据位置：`~/.dsh/storages/dsh-plugin-bg-studio/`（`settings.json` + `images/`）。
+```js
+window.addEventListener('message', (ev) => {
+  const d = ev.data
+  if (d?.source === 'dsh-bg-studio' && d?.type === 'activity') {
+    // d.state: 'idle' | 'busy' | 'overloaded'   d.idleClip: current idle clip name
+  }
+})
+```
 
-## 开发
+Import bundles from the panel (any local folder containing `manifest.json`).
+
+## Troubleshooting
+
+- **Install/uninstall blocked by `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`** — a dependency published within the last 24h makes the desktop plugin manager validate the entire lockfile and fail. It self-heals after the window. Immediate workaround: fully quit DSH, then `pnpm add/remove` inside `%DSH_HOME%\profiles\<name>` with the system pnpm (it carries no such policy) and keep `dsh.profile.bundles` in sync.
+- **Updated but behavior unchanged** — fully quit DSH (tray included) and reopen; cached plugin code otherwise keeps running.
+- **A web wallpaper shows blank** — its scripts may use browser APIs the sandbox withholds; the shipped shim covers the Wallpaper Engine API family, anything else is a bug worth filing.
+
+## Development
 
 ```sh
 pnpm install
-pnpm build        # esbuild → lib/index.js (host ESM) + lib/client.js (ModuleLoader 包装)
+node tools/build.mjs      # esbuild → lib/index.js (host ESM) + lib/client.js (ModuleLoader-wrapped)
+
+# disposable test profile (never touches your desktop profile)
+dsh devbg --from-default-profile web        # boots once, Ctrl+C
+dsh plugin --profile devbg add "$(pwd)"
+dsh --profile devbg                          # Web UI at 127.0.0.1:3080
 ```
 
-本地测试循环（独立 profile，不影响桌面版）：
+Architecture in brief: a `shared/` protocol (settings + bundle format), a Node host (settings store, media/bundle library with loopback-fenced routes, session/event activity bridge), and a web client (provider registry → four renderers, surface-token styling, i18n, mood prompts). Adding a renderer, a canvas scene or a bundle field never touches the host.
 
-```sh
-dsh devbg --from-default-profile web      # 首次：从 web 模板建 profile（会自动启动，Ctrl+C 退出）
-dsh plugin --profile devbg add <本项目绝对路径>
-dsh --profile devbg                        # 启动 Web UI（默认 127.0.0.1:3080，带 token）
-# 改代码 → pnpm build → 浏览器刷新；host 侧改动需重启 profile
-```
+Test bundles live in `dev-assets/wallpapers/`; `dev-assets/we2dsh.py` is the headless workshop converter.
 
-## 架构（动态壁纸扩展点）
+## Roadmap
 
-```
-src/
-├── shared/protocol.ts      # 设置协议：BackgroundKind 枚举 + 各模式参数 + 消毒/钳制
-├── host/                   # Node 侧：ctx.webServer 路由（settings/images CRUD）+ 原子持久化
-└── client/
-    ├── background.ts       # 背景层（fixed 全窗 div）+ PROVIDERS 注册表 ← 扩展点
-    ├── providers/          # 每种模式一个 Provider：mount/update/dispose
-    ├── surface.ts          # 表面样式引擎：真实 DSH token 半透明化（深浅两套预计算色）
-    ├── runtime.ts          # 状态管道：设置 → 表面样式 + 背景层；防抖持久化
-    └── panel/              # 设置面板（官方 sidebar.panellist + main 插槽）
-```
-
-**新增动态壁纸模式的三步**（协议已预留 `animated` 段与 `mediaSource`/`respectReducedMotion` 字段）：
-1. `protocol.ts`：`BackgroundKind` 加 `'animated'`，放开设定的参数段；
-2. `providers/animated.ts`：实现 `BackgroundProvider`（`mount(el, settings, ctx)` 里渲染 `<video>`/`<canvas>`/iframe/Shader，`update` 处理参数变化不重启媒体，`dispose` 释放循环与媒体）；
-3. `background.ts`：`PROVIDERS` 表注册 + 面板 `MODES` 数组放开禁用。
-
-Host 侧无需任何改动（它只存取设置与媒体文件）。
-
-### 表面 token 的来源与稳定性
-
-`surface.ts` 中的 14 个 `--dsw-alias-*` / `--dsw-specific-*` 表面填充 token 捕获自 DSH 0.1.7 实机 DOM（深浅两套）。DSH 升级后若 token 改名，覆盖会静默失效（表现为模式切换后表面仍不透明）——届时重抓 token 表即可；文字 token 不在本插件触碰范围内，无回归风险。
-
-## 已验证（DSH 0.1.7-rc.2 / Windows x64 / Node 22）
-
-- 面板注册（侧栏行 + 中央页）、图片库上传/点选/删除、设置防抖持久化与重启恢复
-- 三种模式视觉验收（外部视觉模型盲评：毛玻璃侧栏+主区渐变可见、图片满窗可读、透明模式界面完整）
-- 深浅色切换期间文字 token 全程原值；切回"默认"后 token 像素级还原
-- loopback 安全栅栏：非本机请求 403
-
-## 已知边界
-
-- "透明"模式的深度分环境：
-  - **桌面版 + Windows 11**：插件会尝试为主窗口启用系统亚克力材质（`setBackgroundMaterial('acrylic')`，运行时 API、不要求窗口重建），成功后表面透明可透视桌面；面板会显示材质状态。
-  - **桌面版 + Windows 10 / `dsh web` / CLI**：材质不可用时透出的是**窗口底色**——Electron 的 `transparent` 是窗口构造参数，DSH 的 Windows 主窗口未开启（macOS 版官方就开了 vibrancy + 透明底，Windows 侧需 DeepSeek 官方跟进），插件层无法跨越。
-  - 设置面板自身保持不透明实底（跟随深浅主题），任何模式下都可读。
-- 侧栏等处 DSH 用双层容器绘制同一 token，本插件按 1-√(1-α) 预补偿，使叠加后的观感等于面板设定值。
-
-### 变更记录
-
-- **0.4.2 完整国际化**：插件文案接入 DSH 官方 locale 服务（`ctx.locale.register` + `bind`）——面板、侧栏入口、主题氛围提示全部**实时跟随 DSH 的语言设置**（切换无需刷新，浏览器语言仅作服务缺失时的兜底）；壁纸类型徽标本地化（中文模式下 video/web/canvas/character 显示为 视频/网页/场景/角色）；英文模式全量可用。
-- **0.4.1 提醒策略调整**：主题氛围提醒从"每页面会话一次"改为**每次切换到不匹配的壁纸都提醒**（切走再切回同样重新提醒）；防打扰只剩两条底线——用户点过"这张壁纸不再提醒"的持久静音、同一壁纸上调参数（⚙ 滑杆）不重复弹（激活记忆而非提醒记忆，随壁纸卸载重置）。
-- **0.4.0 主题氛围提醒**：壁纸与界面明暗"唱反调"时的一次性贴心提示——manifest 可声明 `tone: dark|light`（未声明的视频壁纸自动采样画面亮度），激活时不匹配当前主题则弹出创意提示（"壁纸已入夜，界面还亮着灯。要一起关灯看星星吗？"/"壁纸天亮了，界面还赖在夜里。要一起掀开窗帘吗？"），一键切换走 DSH 官方 `settings/mutate` RPC（即时生效），支持"这张壁纸不再提醒"（按壁纸持久化）；manifest 拉取改为绕过 HTTP 缓存（控制面数据不可被 86400s 资源缓存劫持——本次实测踩坑）。
-- **0.3.1 WE 网页壁纸兼容层**：修复 web 型壁纸整页白屏——查询参数式资源路由会让 iframe 内的相对路径引用（图片/脚本）全部 404，现在 HTML 伺服时动态改写为绝对地址，并注入 Wallpaper Engine API 兼容 shim（`wallpaperRegister` 等 noop，WE 壁纸脚本不再初始化崩溃）与透明文档底样式；iframe 元素自身带主题色兜底（深色模式不再刺眼白）；视频播放健壮性——有声自动播放被桌面版 autoplay 政策拒绝时自动降级静音保画面，用户首次点击/按键后自动恢复音量。
-- **0.3.0 壁纸生态三件套**：**从 Wallpaper Engine 导入**（面板内扫描 Workshop 目录、一键转换 video/web 壁纸入库，不写入源目录、视频包只拷影片文件省空间）；**壁纸级独立设置**（卡片 ⚙/双击展开——视频：音量/速度/适配，角色：忙碌阈值/摸鱼轮换，均热应用不重建；全局阈值/轮换滑块移除并自动迁移）；**修复快速切换模式后动态壁纸消失**（异步挂载竞态：已销毁节点上的迟到回调被 isConnected 守卫拦截）；插件面板与 DSH 系统设置页的"不透明"拆为两个独立开关并排显示。
-- **0.2.2 面板滚动与遮罩行**：修复设置面板不可滚动（DSH 中央列 `overflow: hidden` 裁切超长内容，面板改为视口高自滚动——添加图片后底部开关/按钮不再被挤出视野）；重构"遮罩颜色"行——标签实时显示状态（自动黑/自定义），清除按钮收敛为仅在有自定义色时出现的窄 ×（消除与"重置当前模式参数"的语义重叠，且不再被窄列挤成竖排）。
-- **0.2.1 UI 修复**：图片库改为按需显示（仅图片/毛玻璃模式；默认/透明/动态不再出现，动态模式有自己的壁纸包区）；修复原生下拉框（玻璃背后图片等）在深色模式下弹出白底白字、hover 才可见的问题（`color-scheme` + option 配色双保险）。
-- **0.2.0 动态壁纸架构**：新增"动态"模式与 **壁纸包**（`dsh-wallpaper/1` 格式：目录 + `manifest.json`），四类渲染器——`video`（视频）、`web`（沙箱 iframe 网页壁纸，经 postMessage 接收活动状态，WE 式生态位）、`canvas`（内置编程场景，当前含 nebula 星云）、`character`（精灵图角色 + 任务状态机）。任务活动桥监听全局 `session/event`（turn/start/end），按阈值推导 idle/busy/overloaded 三态；idle 支持多套动作定时轮换。面板支持壁纸包导入（本地目录）/选择/删除、忙碌阈值、轮换间隔、减少动态偏好。`GET /api/dsh-bg-studio/activity?debugState=` 为测试钩子。三个示例包见 `dev-assets/wallpapers/`。
-- **0.1.4**：修复报告指出的"设置界面透明"——此前的修复只覆盖了插件的背景面板，本版把 **DSH 原生系统模态**（左下角"设置"对话框 `[data-shortcut-modal]`，含其他系统弹窗）在背景模式下恢复不透明实底，并纳入"设置面板保持不透明"开关统一控制（关掉开关则系统模态也跟随透明）。
-- **0.1.3**：macOS 兼容加固——窗口材质调用按平台分支（mac 无需调用即原生透明，面板状态如实显示"已生效"；`setBackgroundMaterial` 是 Windows 专属 API，不再在 mac 上误试）。静态审查确认：无硬编码路径、Node 模块全跨平台、Web UI 前端三平台同构。
-- **0.1.2**：设置面板实底改为组件 inline 样式（不依赖注入 CSS 的加载顺序/客户端缓存，修复桌面端面板仍透明的报告）；新增"设置面板保持不透明"开关；"恢复默认"重定义为"重置当前模式参数"（保留模式与选图）；透明模式标记为实验性。
-- **0.1.1**：修复滑杆拖动无效（provider.update 漏传 ctx 导致参数更新中断）；设置面板改为不透明实底；透明模式新增 Win11 亚克力窗口材质尝试 + 状态提示；透明模式不再透明化设置面板自身。
-- **0.1.0**：首发（图片/透明/毛玻璃 + 动态壁纸预留）。
+- More built-in canvas scenes; Lottie / Spine runtimes for character bundles
+- Audio-reactive hooks for web wallpapers (page-side opt-in)
+- Zip bundle import
+- True window transparency on the Windows desktop build (blocked upstream — see deepseek-harness discussions)
 
 ## License
 
-MIT
+[MIT](LICENSE)
