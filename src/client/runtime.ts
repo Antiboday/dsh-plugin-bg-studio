@@ -60,6 +60,10 @@ export class BgStudioRuntime {
     if (!this.settings) return
     applySurfaceStyle(this.settings, isDarkScheme())
     this.layer.setSettings(this.settings, this.providerCtx)
+    if (document.body) {
+      // Panel/system-dialog opacity preference, read by the surface CSS.
+      document.body.setAttribute('data-dsh-bg-panel', this.settings.panelOpaque === false ? 'clear' : 'opaque')
+    }
     void this.syncWindowMaterial(this.settings.kind)
   }
 

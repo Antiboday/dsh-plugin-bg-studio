@@ -76,6 +76,16 @@ function surfaceCss(settings: BgStudioSettings, dark: boolean): string {
   // background layer (or the window color) shows through.
   lines.push('body[data-dsh-bg-kind] { background: transparent; }')
 
+  // Native SYSTEM modals (the Settings dialog carries data-shortcut-modal)
+  // stay opaque while a background mode is active: users tune the effect
+  // from the chat page, but system screens must stay readable. Bound to the
+  // panel-opaque preference (runtime sets body[data-dsh-bg-panel]).
+  lines.push([
+    "body[data-dsh-bg-kind][data-dsh-bg-panel='opaque'] [data-shortcut-modal] {",
+    `  background-color: ${dark ? 'rgb(44 44 46)' : 'rgb(255 255 255)'};`,
+    '}',
+  ].join('\n'))
+
   // Surface alpha per mode. The window base (--dsw-alias-bg-base) is always
   // fully clear: surfaces above it each carry the alpha once, so stacked
   // layers don't compound into near-opacity.
@@ -117,4 +127,5 @@ export function applySurfaceStyle(settings: BgStudioSettings, dark: boolean): vo
 export function removeSurfaceStyle(): void {
   document.getElementById(STYLE_ID)?.remove()
   document.body?.removeAttribute('data-dsh-bg-kind')
+  document.body?.removeAttribute('data-dsh-bg-panel')
 }
