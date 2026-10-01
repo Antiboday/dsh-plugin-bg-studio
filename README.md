@@ -101,6 +101,7 @@ Host 侧无需任何改动（它只存取设置与媒体文件）。
 
 ### 变更记录
 
+- **0.2.1 UI 修复**：图片库改为按需显示（仅图片/毛玻璃模式；默认/透明/动态不再出现，动态模式有自己的壁纸包区）；修复原生下拉框（玻璃背后图片等）在深色模式下弹出白底白字、hover 才可见的问题（`color-scheme` + option 配色双保险）。
 - **0.2.0 动态壁纸架构**：新增"动态"模式与 **壁纸包**（`dsh-wallpaper/1` 格式：目录 + `manifest.json`），四类渲染器——`video`（视频）、`web`（沙箱 iframe 网页壁纸，经 postMessage 接收活动状态，WE 式生态位）、`canvas`（内置编程场景，当前含 nebula 星云）、`character`（精灵图角色 + 任务状态机）。任务活动桥监听全局 `session/event`（turn/start/end），按阈值推导 idle/busy/overloaded 三态；idle 支持多套动作定时轮换。面板支持壁纸包导入（本地目录）/选择/删除、忙碌阈值、轮换间隔、减少动态偏好。`GET /api/dsh-bg-studio/activity?debugState=` 为测试钩子。三个示例包见 `dev-assets/wallpapers/`。
 - **0.1.4**：修复报告指出的"设置界面透明"——此前的修复只覆盖了插件的背景面板，本版把 **DSH 原生系统模态**（左下角"设置"对话框 `[data-shortcut-modal]`，含其他系统弹窗）在背景模式下恢复不透明实底，并纳入"设置面板保持不透明"开关统一控制（关掉开关则系统模态也跟随透明）。
 - **0.1.3**：macOS 兼容加固——窗口材质调用按平台分支（mac 无需调用即原生透明，面板状态如实显示"已生效"；`setBackgroundMaterial` 是 Windows 专属 API，不再在 mac 上误试）。静态审查确认：无硬编码路径、Node 模块全跨平台、Web UI 前端三平台同构。

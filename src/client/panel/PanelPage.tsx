@@ -319,6 +319,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
         </div>
       )}
 
+      {(settings.kind === 'image' || settings.kind === 'frosted') && (
       <div className="bg-studio-section">
         <h3>{tt('section.library')}</h3>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => { void onUpload(event) }} />
@@ -357,6 +358,7 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
           </div>
         )}
       </div>
+      )}
 
       <div className="bg-studio-actions">
         <label className="bg-studio-check">

@@ -234,6 +234,27 @@ input[type='text'].bg-studio-path {
   padding: 4px 6px;
 }
 
+/* Native <select> dropdown popups ignore inherited dark theming unless the
+   control declares its own color-scheme; without this the popup renders
+   white-on-white in dark mode (options only visible on hover). */
+.bg-studio-select {
+  color-scheme: light;
+}
+
+body[data-ds-dark-theme] .bg-studio-select {
+  color-scheme: dark;
+}
+
+.bg-studio-select option {
+  background: #f9fafb;
+  color: #0f1115;
+}
+
+body[data-ds-dark-theme] .bg-studio-select option {
+  background: #151517;
+  color: #f9fafb;
+}
+
 .bg-studio-path {
   flex: 1;
   min-width: 200px;
