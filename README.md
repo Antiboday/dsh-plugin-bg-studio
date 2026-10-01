@@ -142,6 +142,16 @@ Test bundles live in `dev-assets/wallpapers/`; `dev-assets/we2dsh.py` is the hea
 - Zip bundle import
 - True window transparency on the Windows desktop build (blocked upstream — see deepseek-harness discussions)
 
+## Changelog
+
+- **0.4.3** — video watchdog: external pauses (system sleep/wake, window-occlusion throttling, autoplay leftovers) auto-recover within a second; transient serve/decode errors self-heal with one reload.
+- **0.4.2** — full i18n via the DSH locale service (live language follow); localized type badges; English mode.
+- **0.4.1** — mood prompts on every mismatching activation (activation memory).
+- **0.4.0** — theme-mood courtesy prompts (tone declaration / video luminance sampling / one-click flip).
+- **0.3.x** — WE web-wallpaper compatibility (relative-URL rewrite, WE API shim), video autoplay degradation, per-wallpaper settings, in-panel workshop import, mode-switch race fix.
+- **0.2.0** — animated wallpaper engine (bundles, four renderers, task activity bridge).
+- **0.1.x** — picture / transparent / frosted modes, opaque-panel toggles, panel scrolling fixes.
+
 ## License
 
 [MIT](LICENSE)

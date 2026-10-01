@@ -27,24 +27,58 @@ export interface WallpaperRenderer {
 
 /* ------------------------------- video ------------------------------- */
 
+type VideoDom = HTMLVideoElement & {
+  __wantVolume?: number
+  __gestureHook?: () => void
+  __recovering?: boolean
+  __reloaded?: boolean
+}
+
 export const videoRenderer: WallpaperRenderer = {
   mount(el, manifest, ctx) {
     el.replaceChildren()
-    const video = document.createElement('video')
+    const video = document.createElement('video') as VideoDom
     video.src = ctx.assetUrl(manifest.entry)
     video.loop = true
     video.autoplay = true
     video.setAttribute('playsinline', '')
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'
-    video.addEventListener('error', () => { /* keep the element; host logs 404s */ })
+    // Nothing in this plugin ever pauses the wallpaper on purpose, so a
+    // 'pause' arriving here is external: system sleep/wake, window occlusion
+    // throttling, or an autoplay-policy leftover. Recover automatically —
+    // audibly when possible, muted as the fallback.
+    video.addEventListener('pause', () => {
+      if (video.__recovering) return
+      video.__recovering = true
+      setTimeout(() => {
+        video.__recovering = false
+        if (video.paused && video.isConnected) {
+          void video.play().catch(() => {
+            video.muted = true
+            void video.play().catch(() => { /* next pause event retries */ })
+          })
+        }
+      }, 800)
+    })
+    // Transient serve/decode hiccup: one polite reload attempt.
+    video.addEventListener('error', () => {
+      if (video.__reloaded || !video.isConnected) return
+      video.__reloaded = true
+      setTimeout(() => {
+        if (video.isConnected && video.error) {
+          video.load()
+          void video.play().catch(() => { /* watchdog picks it up */ })
+        }
+      }, 500)
+    })
     el.append(video)
     // Keep wanting the bundle's volume across remounts (autoplay policy may
     // reject audible playback until a user gesture — see update()).
-    ;(video as HTMLVideoElement & { __wantVolume?: number }).__wantVolume = ctx.bundle.volume
+    video.__wantVolume = ctx.bundle.volume
     this.update?.(el, manifest, ctx)
   },
   update(el, _manifest, ctx) {
-    const video = el.querySelector('video') as (HTMLVideoElement & { __wantVolume?: number; __gestureHook?: () => void }) | null
+    const video = el.querySelector('video') as VideoDom | null
     if (!video) return
     // Hot-apply the wallpaper-local dials without remounting.
     video.playbackRate = ctx.bundle.rate

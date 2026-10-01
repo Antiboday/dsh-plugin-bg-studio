@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-bg-studio",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Background Studio for DeepSeek Harness (DSH): picture, transparent and frosted-glass modes plus an animated wallpaper engine — video / web / canvas / task-reactive character bundles, one-click Wallpaper Engine workshop import, theme-mood courtesy prompts. Text colors are never touched.",
   "type": "module",
   "license": "MIT",
