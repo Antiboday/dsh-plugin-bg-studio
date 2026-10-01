@@ -1,9 +1,80 @@
 # Feature Request Draft — Transparent / acrylic window on Windows
 
 > 提交位置：https://github.com/deepseek-ai/deepseek-harness/discussions/new?category=ideas
-> 分类选 **💡 Ideas**。标题和正文直接复制下面内容。
+> 分类选 **💡 Ideas**。
+> 该讨论区是中英双语社区（约一半帖子为中文），中英文任选——两版文稿都在本文件里，任选其一使用。
 
 ---
+
+## 中文版
+
+**标题：**
+
+```
+[Windows] 希望桌面端提供原生透明 / 亚克力窗口选项（win32 分支缺少 macOS 分支已有的处理）
+```
+
+**正文：**
+
+````markdown
+### 诉求
+
+希望 Windows 桌面版能提供一个可选的"透明窗口"模式：页面背景清空后可以透出桌面
+（亚克力 / 云母材质），与 macOS 版当前的行为保持一致。
+
+### 现状
+
+主进程 `createWindow` 中，**darwin** 分支已经启用了原生材质：
+
+```js
+process.platform === "darwin" ? {
+  titleBarStyle: "hiddenInset",
+  vibrancy: "sidebar",
+  visualEffectState: "active",
+  backgroundColor: "#00000000"
+} : {},
+```
+
+而 **win32** 分支只处理了标题栏 overlay——既没有 `transparent` 也没有
+`backgroundMaterial`。因此在 Windows 上，页面即使完全透明，底下仍是不透明的窗口
+底色，用户和插件都无法更进一步。
+
+### 建议的修复（一个开关即可，不必改设计）
+
+在 win32 分支增加（放在设置项后面，默认关闭）：
+
+```js
+// Electron 原生支持 Win11 的 DWM 材质：
+backgroundMaterial: "acrylic"   // 或 "mica"
+// 和/或经典做法（配合 00-alpha 底色技巧，有边框窗口也可用）：
+backgroundColor: "#00000000"
+```
+
+参考：
+
+- Electron `backgroundMaterial` 窗口选项文档：
+  https://electronjs.org/docs/latest/api/structures/base-window-options
+- 社区模块已证明带边框的 Electron 窗口在 Win11 上可行：
+  https://github.com/pykeio/vibe 、 https://github.com/GregVido/mica-electron
+
+### 为什么外部绕路都走不通（已实测）
+
+- `transparent` 是窗口构造期参数，启动后任何插件/脚本都无法补开；
+- 从进程外调用 `SetWindowCompositionAttribute` / `ACCENT_ENABLE_ACRYLICBLURBEHIND`
+  返回成功，但在当前 Windows 11 上对 Chromium 自绘窗口**无任何视觉效果**
+  （本机已验证）；
+- macOS 用户实际上已经通过 `vibrancy` 拥有了这个能力。
+
+### 现实受益方
+
+社区的背景定制 / 皮肤类插件（图片背景、毛玻璃等）在其他平台工作正常，唯独
+Windows 端的"透明"模式只能透出窗口底色。一个放在设置里的构造参数开关就能补齐
+这个差距。谢谢！
+````
+
+---
+
+## English version
 
 **Title:**
 
