@@ -91,6 +91,27 @@ export async function fetchActivity(threshold: number): Promise<ActivitySnapshot
   return json<ActivitySnapshot>(`${BASE}/activity?threshold=${encodeURIComponent(String(threshold))}`, { cache: 'no-store' })
 }
 
+/** One Wallpaper Engine workshop row from the scanner. */
+export interface WeItem {
+  id: string
+  title: string
+  type: string
+  file: string
+  convertible: boolean
+  reason?: string
+}
+
+export async function scanWorkshop(root: string): Promise<WeItem[]> {
+  const payload = await json<{ items: WeItem[] }>(`${BASE}/we-scan?root=${encodeURIComponent(root)}`, { cache: 'no-store' })
+  return payload.items
+}
+
+export async function importFromWorkshop(root: string, wid: string): Promise<{ id: string }> {
+  const res = await fetch(`${BASE}/we-import?root=${encodeURIComponent(root)}&id=${encodeURIComponent(wid)}`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `we-import ${res.status}`)
+  return res.json() as Promise<{ id: string }>
+}
+
 /** Current dark-scheme decision, from the same body attribute the app's own
  * ThemePresenter maintains (see the theme module's contract). */
 export function isDarkScheme(): boolean {

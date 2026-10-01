@@ -5,7 +5,7 @@
  * Renderers must tolerate being mounted into a cleared element and must
  * never throw across dispose.
  */
-import type { ActivitySnapshot, MascotSpec, WallpaperManifest } from '../shared/protocol.ts'
+import type { ActivitySnapshot, BundleSettings, MascotSpec, WallpaperManifest } from '../shared/protocol.ts'
 import { CANVAS_SCENES } from './scenes.ts'
 
 export type ActivityState = ActivitySnapshot['state']
@@ -14,6 +14,8 @@ export interface RendererCtx {
   /** URL for a file inside the active bundle. */
   assetUrl(path: string): string
   isDark(): boolean
+  /** This bundle's own settings (the ⚙ panel values). */
+  bundle: BundleSettings
 }
 
 export interface WallpaperRenderer {
@@ -30,13 +32,21 @@ export const videoRenderer: WallpaperRenderer = {
     el.replaceChildren()
     const video = document.createElement('video')
     video.src = ctx.assetUrl(manifest.entry)
-    video.muted = true
     video.loop = true
-    video.autoplay = true
     video.setAttribute('playsinline', '')
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'
     video.addEventListener('error', () => { /* keep the element; host logs 404s */ })
     el.append(video)
+    this.update?.(el, manifest, ctx)
+  },
+  update(el, _manifest, ctx) {
+    const video = el.querySelector('video')
+    if (!video) return
+    // Hot-apply the wallpaper-local dials without remounting.
+    video.volume = ctx.bundle.volume
+    video.muted = ctx.bundle.volume === 0
+    video.playbackRate = ctx.bundle.rate
+    video.style.objectFit = ctx.bundle.fit
     void video.play().catch(() => { /* autoplay guard: muted playback is allowed; ignore */ })
   },
 }
@@ -136,6 +146,7 @@ export const characterRenderer: WallpaperRenderer = {
     void fetch(ctx.assetUrl(manifest.entry))
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`mascot.json ${res.status}`))))
       .then((spec: MascotSpec) => {
+        if (!dom.canvas.isConnected) return // mode switched away meanwhile
         dom.spec = spec
         dom.image.src = ctx.assetUrl(spec.sheet)
         void dom.image.decode().catch(() => { /* draw loop retries via complete check */ })

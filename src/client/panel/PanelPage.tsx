@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { BgStudioRuntime } from '../runtime.ts'
-import { imageUrl, isDarkScheme, subscribeColorScheme } from '../api.ts'
+import { imageUrl, isDarkScheme, subscribeColorScheme, type WeItem } from '../api.ts'
 import { en, zh, type LocaleKey } from '../locales.ts'
 // Plain text at build time; injected once as a <style> below.
 import panelCss from './panel.css'
@@ -82,7 +82,11 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
 
   const settings = runtime.current
   const fileRef = useRef<HTMLInputElement>(null)
-  const wallpaperDir = useRef('')
+  const weRootRef = useRef('D:\\steam\\steamapps\\workshop\\content\\431960')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [weItems, setWeItems] = useState<WeItem[] | null>(null)
+  const [weBusy, setWeBusy] = useState(false)
+  const weRoot = weRootRef.current
 
   if (!settings) {
     return (
@@ -263,59 +267,78 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
       {settings.kind === 'animated' && (
         <div className="bg-studio-section">
           <h3>{tt('wallpaper.library')}</h3>
-          <div className="bg-studio-actions">
-            <input
-              type="text"
-              className="bg-studio-path"
-              placeholder={tt('wallpaper.dirPlaceholder')}
-              onChange={(event) => { wallpaperDir.current = event.target.value }}
-            />
-            <button type="button" className="bg-studio-button" onClick={() => { if (wallpaperDir.current) void runtime.addWallpaper(wallpaperDir.current) }}>
-              {tt('wallpaper.import')}
-            </button>
-          </div>
           {runtime.wallpaperLibrary.length === 0 ? (
             <p className="bg-studio-note">{tt('wallpaper.empty')}</p>
           ) : (
             <div className="bg-studio-library">
-              {runtime.wallpaperLibrary.map((wp) => (
-                <div
-                  key={wp.id}
-                  className="bg-studio-wp"
-                  data-selected={settings.animated.mediaSource === wp.id}
-                  onClick={() => runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } })}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => { if (event.key === 'Enter') runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } }) }}
-                >
-                  <span className="bg-studio-wp-type">{wp.type}</span>
-                  <span className="bg-studio-wp-name">{wp.error ? `${wp.name}（${tt('wallpaper.bad')}）` : wp.name}</span>
-                  <button
-                    type="button"
-                    className="bg-studio-thumb-del"
-                    title={tt('library.delete')}
-                    onClick={(event) => { event.stopPropagation(); if (window.confirm(`${tt('library.delete')} ${wp.name}?`)) void runtime.removeWallpaper(wp.id) }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+              {runtime.wallpaperLibrary.map((wp) => {
+                const bs = settings.animated.perBundle[wp.id]
+                return (
+                  <div key={wp.id}>
+                    <div
+                      className="bg-studio-wp"
+                      data-selected={settings.animated.mediaSource === wp.id}
+                      onClick={() => runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } })}
+                      onDoubleClick={() => setExpandedId(expandedId === wp.id ? null : wp.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => { if (event.key === 'Enter') runtime.update({ animated: { ...settings.animated, mediaSource: wp.id } }) }}
+                    >
+                      <span className="bg-studio-wp-type">{wp.type}</span>
+                      <span className="bg-studio-wp-name">{wp.error ? `${wp.name}（${tt('wallpaper.bad')}）` : wp.name}</span>
+                      <button
+                        type="button"
+                        className="bg-studio-wp-gear"
+                        title={tt('wallpaper.settings')}
+                        onClick={(event) => { event.stopPropagation(); setExpandedId(expandedId === wp.id ? null : wp.id) }}
+                      >
+                        ⚙
+                      </button>
+                      <button
+                        type="button"
+                        className="bg-studio-thumb-del"
+                        title={tt('library.delete')}
+                        onClick={(event) => { event.stopPropagation(); if (window.confirm(`${tt('library.delete')} ${wp.name}?`)) void runtime.removeWallpaper(wp.id) }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    {expandedId === wp.id && !wp.error && (
+                      <div className="bg-studio-bsettings">
+                        {wp.type === 'video' && (
+                          <>
+                            <Field label={tt('wp.volume')} value={bs?.volume ?? 0} min={0} max={1} step={0.05}
+                              onChange={(v) => runtime.updateBundleSettings(wp.id, { volume: v })} />
+                            <Field label={tt('wp.rate')} value={bs?.rate ?? 1} min={0.25} max={4} step={0.05}
+                              onChange={(v) => runtime.updateBundleSettings(wp.id, { rate: v })} format={(v) => `×${v}`} />
+                            <div className="bg-studio-field">
+                              <label>{tt('wp.fit')}</label>
+                              <select className="bg-studio-select" value={bs?.fit ?? 'cover'}
+                                onChange={(event) => runtime.updateBundleSettings(wp.id, { fit: event.target.value })}>
+                                <option value="cover">{tt('image.fit.cover')}</option>
+                                <option value="contain">{tt('image.fit.contain')}</option>
+                                <option value="fill">{tt('wp.fit.fill')}</option>
+                              </select>
+                              <span />
+                            </div>
+                          </>
+                        )}
+                        {wp.type === 'character' && (
+                          <>
+                            <Field label={tt('wallpaper.threshold')} value={bs?.taskThreshold ?? 3} min={1} max={16} step={1}
+                              onChange={(v) => runtime.updateBundleSettings(wp.id, { taskThreshold: Math.round(v) })} format={(v) => String(Math.round(v))} />
+                            <Field label={tt('wallpaper.rotate')} value={bs?.idleRotateSec ?? 120} min={10} max={600} step={10}
+                              onChange={(v) => runtime.updateBundleSettings(wp.id, { idleRotateSec: Math.round(v) })} format={(v) => `${Math.round(v)}s`} />
+                          </>
+                        )}
+                        {(wp.type === 'web' || wp.type === 'canvas') && <p className="bg-studio-note">{tt('wp.noSettings')}</p>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
-          <Field
-            label={tt('wallpaper.threshold')}
-            value={settings.animated.taskThreshold}
-            min={1} max={16} step={1}
-            onChange={(v) => runtime.update({ animated: { ...settings.animated, taskThreshold: Math.round(v) } })}
-            format={(v) => String(Math.round(v))}
-          />
-          <Field
-            label={tt('wallpaper.rotate')}
-            value={settings.animated.idleRotateSec}
-            min={10} max={600} step={10}
-            onChange={(v) => runtime.update({ animated: { ...settings.animated, idleRotateSec: Math.round(v) } })}
-            format={(v) => `${Math.round(v)}s`}
-          />
           <label className="bg-studio-check">
             <input
               type="checkbox"
@@ -325,6 +348,38 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
             {tt('wallpaper.reducedMotion')}
           </label>
           <p className="bg-studio-note">{tt('wallpaper.note')}</p>
+
+          <h3>{tt('we.title')}</h3>
+          <div className="bg-studio-actions">
+            <input
+              type="text"
+              className="bg-studio-path"
+              defaultValue={weRoot}
+              placeholder={tt('we.rootPlaceholder')}
+              onChange={(event) => { weRootRef.current = event.target.value }}
+            />
+            <button type="button" className="bg-studio-button" disabled={weBusy}
+              onClick={() => { void (async () => { setWeBusy(true); try { setWeItems(await runtime.scanWorkshop(weRootRef.current)) } catch { setWeItems([]) } finally { setWeBusy(false) } })() }}>
+              {tt('we.scan')}
+            </button>
+          </div>
+          {weItems !== null && (
+            <div className="bg-studio-welist">
+              {weItems.filter((item) => item.convertible).length === 0 && <p className="bg-studio-note">{tt('we.none')}</p>}
+              {weItems.map((item) => (
+                <div key={item.id} className="bg-studio-weitem" data-ok={item.convertible}>
+                  <span className="bg-studio-wp-type">{item.type}</span>
+                  <span className="bg-studio-wp-name" title={item.reason ?? ''}>{item.title}{item.convertible ? '' : ` — ${item.reason ?? ''}`}</span>
+                  {item.convertible && (
+                    <button type="button" className="bg-studio-button" disabled={weBusy}
+                      onClick={() => { void (async () => { setWeBusy(true); try { await runtime.importFromWorkshop(weRootRef.current, item.id) } finally { setWeBusy(false) } })() }}>
+                      {tt('we.importOne')}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -370,14 +425,24 @@ export function PanelPage({ runtime }: { runtime: BgStudioRuntime }): React.Reac
       )}
 
       <div className="bg-studio-actions">
-        <label className="bg-studio-check">
-          <input
-            type="checkbox"
-            checked={settings.panelOpaque !== false}
-            onChange={(event) => runtime.update({ panelOpaque: event.target.checked })}
-          />
-          {tt('panel.opaque')}
-        </label>
+        <div className="bg-studio-switchrow">
+          <label className="bg-studio-check">
+            <input
+              type="checkbox"
+              checked={settings.panelOpaque !== false}
+              onChange={(event) => runtime.update({ panelOpaque: event.target.checked })}
+            />
+            {tt('panel.opaque')}
+          </label>
+          <label className="bg-studio-check">
+            <input
+              type="checkbox"
+              checked={settings.systemDialogsOpaque !== false}
+              onChange={(event) => runtime.update({ systemDialogsOpaque: event.target.checked })}
+            />
+            {tt('panel.sysOpaque')}
+          </label>
+        </div>
         <button type="button" className="bg-studio-button" disabled={settings.kind === 'none'} onClick={() => runtime.resetMode()}>
           {tt('action.reset')}
         </button>

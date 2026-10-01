@@ -35,6 +35,8 @@ export const ROUTES = {
   wallpapers: '/api/dsh-bg-studio/wallpapers',
   asset: '/api/dsh-bg-studio/asset',
   activity: '/api/dsh-bg-studio/activity',
+  weScan: '/api/dsh-bg-studio/we-scan',
+  weImport: '/api/dsh-bg-studio/we-import',
 } as const
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -343,6 +345,54 @@ export function makeRoutes({ store, maxImageBytes, logger, applyWindowMaterial, 
           }
           const threshold = Number(queryParam(req, 'threshold') ?? 3)
           writeJson(res, 200, activity.snapshot(Number.isFinite(threshold) ? Math.max(1, threshold) : 3))
+        } catch (error) {
+          logger.warn(error)
+          writeJson(res, 500, { error: String(error) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: ROUTES.weScan,
+      handler: async (req, res) => {
+        try {
+          if (req.method !== 'GET') {
+            writeJson(res, 405, { error: `method not allowed (${req.method})` })
+            return
+          }
+          const root = queryParam(req, 'root')
+          if (!root) {
+            writeJson(res, 400, { error: 'expected ?root=<workshop content dir>' })
+            return
+          }
+          writeJson(res, 200, { items: await store.scanWorkshop(root) })
+        } catch (error) {
+          logger.warn(error)
+          writeJson(res, 500, { error: String(error) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: ROUTES.weImport,
+      handler: async (req, res) => {
+        try {
+          if (req.method !== 'POST') {
+            writeJson(res, 405, { error: `method not allowed (${req.method})` })
+            return
+          }
+          const root = queryParam(req, 'root')
+          const wid = queryParam(req, 'id')
+          if (!root || !wid) {
+            writeJson(res, 400, { error: 'expected ?root=<dir>&id=<workshop id>' })
+            return
+          }
+          try {
+            const id = await store.importFromWorkshop(root, wid)
+            writeJson(res, 201, { id })
+          } catch (error) {
+            writeJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
+          }
         } catch (error) {
           logger.warn(error)
           writeJson(res, 500, { error: String(error) })

@@ -7,7 +7,8 @@
  * all policy lives here. Adding a bundle type = one renderer in renderers.ts
  * plus one line in RENDERERS.
  */
-import type { BgStudioSettings, WallpaperManifest } from '../../shared/protocol.ts'
+import type { BgStudioSettings, BundleSettings, WallpaperManifest } from '../../shared/protocol.ts'
+import { DEFAULT_BUNDLE_SETTINGS } from '../../shared/protocol.ts'
 import type { BackgroundProvider, ProviderContext } from '../background.ts'
 import { ActivityMachine } from '../activity.ts'
 import { canvasRenderer, characterRenderer, videoRenderer, webRenderer, type RendererCtx, type WallpaperRenderer } from '../renderers.ts'
@@ -27,21 +28,32 @@ interface AnimatedDom {
   renderer: WallpaperRenderer | null
 }
 
+/** The active bundle's own settings (per-bundle overrides with defaults). */
+export function bundleSettingsOf(settings: BgStudioSettings): BundleSettings {
+  const id = settings.animated.mediaSource
+  return (id && settings.animated.perBundle[id]) || DEFAULT_BUNDLE_SETTINGS
+}
+
 export const animatedProvider: BackgroundProvider = {
   mount(el, settings, pageCtx) {
     el.replaceChildren()
     const dom: AnimatedDom = { manifest: null, renderer: null }
     ;(el as HTMLElement & { __bgStudioAnim?: AnimatedDom }).__bgStudioAnim = dom
 
+    const bundle = bundleSettingsOf(settings)
     const ctx: RendererCtx = {
       assetUrl: (path: string) => pageCtx.assetUrl(settings.animated.mediaSource ?? '', path),
       isDark: pageCtx.isDark,
+      bundle,
     }
     // Fetch manifest, then dispatch. A bad bundle leaves a dark layer and
     // the panel's error listing explains why — never a thrown error.
     void fetchManifest(settings, pageCtx)
       .then((manifest) => {
-        if (!manifest) return
+        // Race guard: a quick mode switch away and back disposes this layer
+        // element before the (cached) manifest resolves; mounting into a
+        // detached node would render the wallpaper invisible forever.
+        if (!manifest || !el.isConnected) return
         dom.manifest = manifest
         dom.renderer = RENDERERS[manifest.type]
         if (!dom.renderer) return
@@ -49,9 +61,9 @@ export const animatedProvider: BackgroundProvider = {
         if (manifest.type === 'character' || manifest.type === 'web') {
           const clips = manifest.states?.idle ?? []
           activity.configure({
-            threshold: settings.animated.taskThreshold,
+            threshold: bundle.taskThreshold,
             idleClips: clips,
-            idleRotateSec: settings.animated.idleRotateSec,
+            idleRotateSec: bundle.idleRotateSec,
           })
           activity.onChange((snap) => {
             const clip = snap.state === 'idle'
@@ -59,7 +71,7 @@ export const animatedProvider: BackgroundProvider = {
               : (manifest.states?.[snap.state] ?? [])[0] ?? ''
             dom.renderer?.setState?.(el, snap.state, clip)
           })
-          activity.start(settings.animated.taskThreshold)
+          activity.start(bundle.taskThreshold)
           // Initial paint with the current state.
           const clip = activity.state === 'idle'
             ? activity.currentIdleClip || clips[0] || ''

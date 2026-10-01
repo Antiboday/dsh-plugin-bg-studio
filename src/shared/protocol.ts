@@ -62,10 +62,31 @@ export interface AnimatedReservedSettings {
   mediaSource: string | null
   /** Honor the OS reduced-motion preference by freezing the wallpaper. */
   respectReducedMotion: boolean
-  /** Task-count threshold: 0..N tasks = busy, above = overloaded. */
+  /** Per-bundle overrides (wallpaper-local settings; WE-style ⚙). */
+  perBundle: Record<string, BundleSettings>
+}
+
+/** Wallpaper-local settings. Each bundle type reads what it needs; the
+ * panel shows only the controls relevant to the bundle's type. */
+export interface BundleSettings {
+  /** video: 0..1 (0 = muted, the safe default for a wallpaper). */
+  volume: number
+  /** video: 0.25..4 playback rate. */
+  rate: number
+  /** video: how the movie fills the window. */
+  fit: 'cover' | 'contain' | 'fill'
+  /** character: 1..16 — tasks above this count read as "overloaded". */
   taskThreshold: number
-  /** Seconds between idle-clip rotations for character wallpapers. */
+  /** character: seconds between idle-clip rotations. */
   idleRotateSec: number
+}
+
+export const DEFAULT_BUNDLE_SETTINGS: BundleSettings = {
+  volume: 0,
+  rate: 1,
+  fit: 'cover',
+  taskThreshold: 3,
+  idleRotateSec: 120,
 }
 
 /** Full plugin settings. */
@@ -79,6 +100,9 @@ export interface BgStudioSettings {
   /** Keep the settings panel itself on an opaque base while the rest of the
    * UI goes transparent/glass. Users may turn it off to theme the panel too. */
   panelOpaque: boolean
+  /** Keep DSH's own system dialogs (Settings etc.) opaque in background
+   * modes — independent from the plugin panel preference. */
+  systemDialogsOpaque: boolean
 }
 
 /** One image library entry (metadata only; bytes are served by route). */
@@ -101,14 +125,45 @@ export const DEFAULT_SETTINGS: BgStudioSettings = {
   image: { imageId: null, fit: 'cover', opacity: 1, blur: 0, dim: 0.25, tint: null },
   transparent: { surfaceOpacity: 0, scrim: 0.08 },
   frosted: { blur: 18, surfaceOpacity: 0.55, saturation: 1.25, imageId: null },
-  animated: { mediaSource: null, respectReducedMotion: true, taskThreshold: 3, idleRotateSec: 120 },
+  animated: { mediaSource: null, respectReducedMotion: true, perBundle: {} },
   panelOpaque: true,
+  systemDialogsOpaque: true,
 }
 
 /** Clamp n into [min, max]; NaN falls back to min. */
 export function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min
   return Math.min(max, Math.max(min, n))
+}
+
+/** Sanitize one bundle-settings blob. */
+export function sanitizeBundleSettings(raw: unknown): BundleSettings {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  return {
+    volume: clamp(Number(src.volume ?? 0), 0, 1),
+    rate: clamp(Number(src.rate ?? 1), 0.25, 4),
+    fit: ['cover', 'contain', 'fill'].includes(src.fit as string) ? (src.fit as BundleSettings['fit']) : 'cover',
+    taskThreshold: clamp(Number(src.taskThreshold ?? 3), 1, 16),
+    idleRotateSec: clamp(Number(src.idleRotateSec ?? 120), 5, 3600),
+  }
+}
+
+function sanitizePerBundle(raw: unknown, legacyThreshold: unknown, legacyRotate: unknown): Record<string, BundleSettings> {
+  const out: Record<string, BundleSettings> = {}
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  for (const [id, value] of Object.entries(src)) {
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id)) continue
+    out[id] = sanitizeBundleSettings(value)
+  }
+  // One-time migration from the pre-0.3 global dials into existing bundles.
+  if (legacyThreshold !== undefined || legacyRotate !== undefined) {
+    const th = clamp(Number(legacyThreshold ?? 3), 1, 16)
+    const rot = clamp(Number(legacyRotate ?? 120), 5, 3600)
+    for (const id of Object.keys(out)) {
+      out[id] = { ...out[id], taskThreshold: th, idleRotateSec: rot }
+    }
+  }
+  return out
 }
 
 /** Clamp/repair one raw settings object into a valid BgStudioSettings.
@@ -145,10 +200,12 @@ export function sanitizeSettings(raw: unknown): BgStudioSettings {
     animated: {
       mediaSource: typeof ani.mediaSource === 'string' && ani.mediaSource !== '' ? ani.mediaSource : null,
       respectReducedMotion: ani.respectReducedMotion !== false,
-      taskThreshold: clamp(Number(ani.taskThreshold ?? 3), 1, 32),
-      idleRotateSec: clamp(Number(ani.idleRotateSec ?? 120), 5, 3600),
+      // Per-bundle map, each entry sanitized; legacy global threshold/rotate
+      // values migrate into each existing bundle's settings once.
+      perBundle: sanitizePerBundle(ani.perBundle, ani.taskThreshold, ani.idleRotateSec),
     },
     panelOpaque: src.panelOpaque !== false,
+    systemDialogsOpaque: src.systemDialogsOpaque !== false,
   }
 }
 

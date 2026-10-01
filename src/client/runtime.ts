@@ -9,10 +9,10 @@
  * slider drags cost one PUT, not one per pixel.
  */
 import type { BgStudioSettings, ImageEntry, SettingsPayload, WallpaperEntry } from '../shared/protocol.ts'
-import { DEFAULT_SETTINGS } from '../shared/protocol.ts'
+import { DEFAULT_BUNDLE_SETTINGS, DEFAULT_SETTINGS, sanitizeBundleSettings } from '../shared/protocol.ts'
 import { BackgroundLayer, type ProviderContext } from './background.ts'
 import { applySurfaceStyle, removeSurfaceStyle } from './surface.ts'
-import { assetUrl, deleteImage, deleteWallpaper, fetchSettings, fetchWallpapers, imageUrl, importWallpaper, isDarkScheme, manifestUrl, resetSettings, saveSettings, setWindowMaterial, subscribeColorScheme, uploadImage } from './api.ts'
+import { assetUrl, deleteImage, deleteWallpaper, fetchSettings, fetchWallpapers, imageUrl, importFromWorkshop as importFromWorkshopApi, importWallpaper, isDarkScheme, manifestUrl, resetSettings, saveSettings, scanWorkshop, setWindowMaterial, subscribeColorScheme, uploadImage, type WeItem } from './api.ts'
 
 const PERSIST_DEBOUNCE_MS = 350
 
@@ -20,6 +20,7 @@ export class BgStudioRuntime {
   private settings: BgStudioSettings | null = null
   private images: ImageEntry[] = []
   private wallpapers: WallpaperEntry[] = []
+  private weCache: { root: string; items: WeItem[] } | null = null
   private layer = new BackgroundLayer()
   private saveTimer: ReturnType<typeof setTimeout> | null = null
   private offScheme: (() => void) | null = null
@@ -68,8 +69,10 @@ export class BgStudioRuntime {
     applySurfaceStyle(this.settings, isDarkScheme())
     this.layer.setSettings(this.settings, this.providerCtx)
     if (document.body) {
-      // Panel/system-dialog opacity preference, read by the surface CSS.
+      // Two independent opacity preferences, read by the surface CSS and
+      // the panel's inline paint.
       document.body.setAttribute('data-dsh-bg-panel', this.settings.panelOpaque === false ? 'clear' : 'opaque')
+      document.body.setAttribute('data-dsh-bg-sysdialog', this.settings.systemDialogsOpaque === false ? 'clear' : 'opaque')
     }
     void this.syncWindowMaterial(this.settings.kind)
   }
@@ -148,6 +151,29 @@ export class BgStudioRuntime {
     if (this.settings?.animated.mediaSource === id) {
       this.update({ animated: { ...this.settings.animated, mediaSource: null } })
     }
+    await this.refreshWallpapers()
+  }
+
+  /** Patch one bundle's wallpaper-local settings (the ⚙ values). */
+  updateBundleSettings(bundleId: string, patch: Record<string, unknown>): void {
+    if (!this.settings) return
+    const current = this.settings.animated.perBundle[bundleId] ?? DEFAULT_BUNDLE_SETTINGS
+    const next = sanitizeBundleSettings({ ...current, ...patch })
+    this.update({ animated: { ...this.settings.animated, perBundle: { ...this.settings.animated.perBundle, [bundleId]: next } } })
+  }
+
+  /** Scan a Wallpaper Engine workshop directory (cached per root). */
+  async scanWorkshop(root: string): Promise<WeItem[]> {
+    if (this.weCache?.root === root) return this.weCache.items
+    const items = await scanWorkshop(root)
+    this.weCache = { root, items }
+    return items
+  }
+
+  /** Convert-and-import one workshop wallpaper into the library. */
+  async importFromWorkshop(root: string, wid: string): Promise<void> {
+    await importFromWorkshopApi(root, wid)
+    this.weCache = null
     await this.refreshWallpapers()
   }
 

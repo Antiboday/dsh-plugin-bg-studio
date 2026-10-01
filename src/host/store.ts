@@ -279,4 +279,78 @@ export class BgStudioStore {
       return null
     }
   }
+
+  /* --------------------- Wallpaper Engine workshop --------------------- */
+
+  /** Scan a WE workshop content directory; returns one row per wallpaper
+   * with a convertibility verdict. Read-only. */
+  async scanWorkshop(root: string): Promise<Array<{ id: string; title: string; type: string; file: string; convertible: boolean; reason?: string }>> {
+    const items: Array<{ id: string; title: string; type: string; file: string; convertible: boolean; reason?: string }> = []
+    let entries: string[]
+    try {
+      entries = await readdir(root)
+    } catch {
+      return items
+    }
+    for (const wid of entries) {
+      if (!/^\d+$/.test(wid)) continue
+      try {
+        const project = JSON.parse(await readFile(join(root, wid, 'project.json'), 'utf8')) as Record<string, unknown>
+        const type = String(project.type ?? '').toLowerCase()
+        const file = String(project.file ?? '')
+        const title = String(project.title ?? wid)
+        const convertible = (type === 'video' || type === 'web') && file !== ''
+        items.push({
+          id: wid,
+          title,
+          type,
+          file,
+          convertible,
+          reason: convertible ? undefined : type === 'video' || type === 'web' ? '入口文件缺失' : 'WE 专属场景格式，暂不支持',
+        })
+      } catch {
+        items.push({ id: wid, title: wid, type: '?', file: '', convertible: false, reason: 'project.json 缺失或损坏' })
+      }
+    }
+    items.sort((a, b) => a.title.localeCompare(b.title))
+    return items
+  }
+
+  /** Convert one WE workshop wallpaper into a library bundle WITHOUT writing
+   * anything into the workshop directory: the converted manifest and the
+   * needed assets are copied into our storage. Video bundles copy just the
+   * movie file; web bundles copy everything except WE metadata/previews.
+   * Returns the new bundle id. */
+  async importFromWorkshop(root: string, wid: string): Promise<string> {
+    if (!/^\d+$/.test(wid)) throw new Error('bad workshop id')
+    const source = normalize(join(root, wid))
+    const project = JSON.parse(await readFile(join(source, 'project.json'), 'utf8')) as Record<string, unknown>
+    const type = String(project.type ?? '').toLowerCase()
+    const entry = String(project.file ?? '')
+    if (!((type === 'video' || type === 'web') && entry)) {
+      throw new Error(`该壁纸类型（${type || '?'}）暂不支持转换`)
+    }
+    const id = `wp-${randomBytes(6).toString('hex')}`
+    const dest = join(this.wallpapersDir, id)
+    await mkdir(dest, { recursive: true })
+    const manifest: WallpaperManifest = {
+      format: WALLPAPER_FORMAT,
+      name: String(project.title ?? wid),
+      description: `Imported from Wallpaper Engine workshop ${wid}`,
+      author: String(project.author || 'workshop'),
+      type: type as 'video' | 'web',
+      entry,
+    }
+    await writeFile(join(dest, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8')
+    if (type === 'video') {
+      await cp(join(source, entry), join(dest, entry))
+    } else {
+      // Web bundles reference sibling assets; copy all, minus WE metadata.
+      for (const name of await readdir(source)) {
+        if (name === 'project.json' || /^preview\.(gif|jpg|png|webp)$/i.test(name)) continue
+        await cp(join(source, name), join(dest, name), { recursive: true })
+      }
+    }
+    return id
+  }
 }

@@ -77,11 +77,10 @@ function surfaceCss(settings: BgStudioSettings, dark: boolean): string {
   lines.push('body[data-dsh-bg-kind] { background: transparent; }')
 
   // Native SYSTEM modals (the Settings dialog carries data-shortcut-modal)
-  // stay opaque while a background mode is active: users tune the effect
-  // from the chat page, but system screens must stay readable. Bound to the
-  // panel-opaque preference (runtime sets body[data-dsh-bg-panel]).
+  // stay opaque while a background mode is active — controlled by its own
+  // preference, separate from the plugin panel's (runtime sets both attrs).
   lines.push([
-    "body[data-dsh-bg-kind][data-dsh-bg-panel='opaque'] [data-shortcut-modal] {",
+    "body[data-dsh-bg-kind][data-dsh-bg-sysdialog='opaque'] [data-shortcut-modal] {",
     `  background-color: ${dark ? 'rgb(44 44 46)' : 'rgb(255 255 255)'};`,
     '}',
   ].join('\n'))
@@ -128,4 +127,5 @@ export function removeSurfaceStyle(): void {
   document.getElementById(STYLE_ID)?.remove()
   document.body?.removeAttribute('data-dsh-bg-kind')
   document.body?.removeAttribute('data-dsh-bg-panel')
+  document.body?.removeAttribute('data-dsh-bg-sysdialog')
 }

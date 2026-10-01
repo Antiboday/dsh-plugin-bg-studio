@@ -322,3 +322,63 @@ body[data-ds-dark-theme] .bg-studio-select option {
   flex-direction: column;
   gap: 6px;
 }
+
+/* Two independent opacity switches side by side. */
+.bg-studio-switchrow {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+/* Per-wallpaper settings (expanded under the card). */
+.bg-studio-bsettings {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bg-studio-wp-gear {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 6px;
+  opacity: 0.7;
+}
+
+.bg-studio-wp-gear:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Wallpaper Engine import list */
+.bg-studio-welist {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bg-studio-weitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+}
+
+.bg-studio-weitem[data-ok='false'] {
+  opacity: 0.45;
+}
+
+.bg-studio-weitem[data-ok='true']:hover {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
