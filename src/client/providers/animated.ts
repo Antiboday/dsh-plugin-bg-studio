@@ -11,7 +11,7 @@ import type { BgStudioSettings, BundleSettings, WallpaperManifest } from '../../
 import { DEFAULT_BUNDLE_SETTINGS } from '../../shared/protocol.ts'
 import type { BackgroundProvider, ProviderContext } from '../background.ts'
 import { ActivityMachine } from '../activity.ts'
-import { maybePromptThemeMood } from '../mood.ts'
+import { maybePromptThemeMood, resetMoodActivation } from '../mood.ts'
 import { canvasRenderer, characterRenderer, videoRenderer, webRenderer, type RendererCtx, type WallpaperRenderer } from '../renderers.ts'
 
 const RENDERERS: Record<string, WallpaperRenderer> = {
@@ -125,6 +125,8 @@ export const animatedProvider: BackgroundProvider = {
     const dom = (el as HTMLElement & { __bgStudioAnim?: AnimatedDom }).__bgStudioAnim
     dom?.renderer?.dispose?.(el)
     activity.stop()
+    // Leaving animated mode: the next activation counts as fresh again.
+    resetMoodActivation()
   },
 }
 

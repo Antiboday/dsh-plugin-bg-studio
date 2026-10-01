@@ -1,18 +1,32 @@
 /**
- * Theme-mood prompt — the hidden courtesy: when a wallpaper clearly belongs
- * to the opposite scheme from the app's current theme (a bright movie on a
- * dark UI, a night scene under a light UI), offer a one-click theme flip in
- * a small themed toast. Manifest `tone` wins; video bundles without one are
- * auto-sampled (average frame luminance). One prompt per wallpaper per page
- * session; "don't ask again for this wallpaper" is remembered per bundle.
+ * Theme-mood prompt — when a wallpaper clearly belongs to the opposite
+ * scheme from the app's current theme (a bright movie on a dark UI, a night
+ * scene under a light UI), offer a one-click theme flip in a small themed
+ * toast.
+ *
+ * Prompting policy (per user preference): EVERY activation of a
+ * mismatching wallpaper prompts — switching away and back re-asks. Only two
+ * things silence it: the explicit per-bundle "don't ask again", and slider
+ * tweaks on the ALREADY-active bundle (activation-memory, not a prompt
+ * memory). Manifest `tone` wins; videos without one are auto-sampled.
  */
 import type { BgStudioSettings, WallpaperManifest } from '../shared/protocol.ts'
 import { isDarkScheme } from './api.ts'
 import { setDshThemePreference } from './theme.ts'
 
 const TOAST_ID = 'dsh-bg-studio-mood-toast'
-/** Wallpapers already prompted in this page session. */
-const prompted = new Set<string>()
+/**
+ * The bundle currently counted as "active" for mood purposes. A DIFFERENT
+ * bundle activating prompts; re-mounting the SAME one (slider tweaks) does
+ * not. Cleared when the wallpaper layer disposes, so leave-and-return
+ * re-prompts.
+ */
+let activeBundle: string | null = null
+
+/** Clear activation memory (wallpaper went away / mode switched). */
+export function resetMoodActivation(): void {
+  activeBundle = null
+}
 
 type Strings = {
   toLight: string
@@ -63,8 +77,8 @@ export function sampleVideoTone(video: HTMLVideoElement): 'dark' | 'light' | nul
   }
 }
 
-/** Decide + show the prompt for the active wallpaper, if warranted.
- * Returns nothing; never throws. */
+/** Decide + show the prompt for the freshly activated wallpaper, if
+ * warranted. Never throws. */
 export function maybePromptThemeMood(options: {
   manifest: WallpaperManifest
   settings: BgStudioSettings
@@ -73,9 +87,12 @@ export function maybePromptThemeMood(options: {
 }): void {
   const { manifest, settings, video, onMute } = options
   const bundleId = settings.animated.mediaSource
-  if (!bundleId || prompted.has(bundleId)) return
-  const muted = settings.animated.perBundle[bundleId]?.moodMuted === true
-  if (muted) return
+  if (!bundleId) return
+  // Same bundle re-mounting (parameter tweaks): stay quiet.
+  if (bundleId === activeBundle) return
+  // Mark active regardless of outcome, so mid-way slider work stays quiet.
+  activeBundle = bundleId
+  if (settings.animated.perBundle[bundleId]?.moodMuted === true) return
 
   let tone = manifest.tone
   if (!tone && video) tone = sampleVideoTone(video)
@@ -85,16 +102,13 @@ export function maybePromptThemeMood(options: {
   if (tone === 'dark' && dark) return
   if (tone === 'light' && !dark) return
 
-  prompted.add(bundleId)
   const s = strings()
   const wantLight = tone === 'light'
-  const label = wantLight ? '切换到浅色模式' : '切换到深色模式'
   const text = wantLight ? s.toLight : s.toDark
-  const enLabel = wantLight ? 'Switch to light mode' : 'Switch to dark mode'
-  const buttonLabel = navigator.language?.toLowerCase().startsWith('zh') ? label : enLabel
-  const keepLabel = s.keep
-  const neverLabel = s.never
-  showMoodToast(text, buttonLabel, keepLabel, neverLabel, wantLight, onMute)
+  const buttonLabel = navigator.language?.toLowerCase().startsWith('zh')
+    ? (wantLight ? '切换到浅色模式' : '切换到深色模式')
+    : (wantLight ? 'Switch to light mode' : 'Switch to dark mode')
+  showMoodToast(text, buttonLabel, s.keep, s.never, wantLight, onMute)
 }
 
 function showMoodToast(text: string, switchLabel: string, keepLabel: string, neverLabel: string, wantLight: boolean, onMute: () => void): void {
@@ -140,15 +154,14 @@ function showMoodToast(text: string, switchLabel: string, keepLabel: string, nev
         : `background:transparent;color:inherit;border:1px solid ${dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.22)'}`,
     ].join(';')
     b.addEventListener('click', () => {
-      if (primary) void setDshThemePreference(wantLight ? 'light' : 'dark')
-      else if (label === neverLabel) onMute()
+      onClick()
       dismissMoodToast()
     })
     return b
   }
   toast.append(mkButton(neverLabel, false, onMute))
   toast.append(mkButton(keepLabel, false, () => {}))
-  toast.append(mkButton(switchLabel, true, () => {}))
+  toast.append(mkButton(switchLabel, true, () => { void setDshThemePreference(wantLight ? 'light' : 'dark') }))
   document.body.append(toast)
   setTimeout(dismissMoodToast, 30000)
 }
