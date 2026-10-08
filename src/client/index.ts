@@ -17,6 +17,7 @@ import { BgStudioRuntime } from './runtime.ts'
 import { PanelPage } from './panel/PanelPage.tsx'
 import { PanelIcon } from './panel/PanelIcon.tsx'
 import { BG_STUDIO_PANEL_ID } from './ids.ts'
+import { startTurnWave } from './turnwave/index.ts'
 import { en, zh, setTranslator, tt } from './locales.ts'
 
 /** Locale namespace this plugin owns. */
@@ -41,10 +42,18 @@ export function apply(ctx: ClientContext): void {
     console.warn('[bg-studio] locale registration failed:', error)
   }
 
+  const disposers: Array<() => void> = []
   const runtime = new BgStudioRuntime()
   void runtime.start()
 
-  const disposers: Array<() => void> = []
+  // Turn-navigator music wave (merged from dsh-plugin-pulse-divider): rides
+  // the audio DSH itself plays; stays fully idle on hosts without the
+  // official navigator.
+  try {
+    disposers.push(startTurnWave())
+  } catch (error) {
+    console.warn('[bg-studio:turnwave] failed to start:', error)
+  }
   try {
     const slots = ctx.slots as unknown as {
       inject(key: string, callback: () => () => void): () => void

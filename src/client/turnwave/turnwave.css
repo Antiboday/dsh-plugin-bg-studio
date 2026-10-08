@@ -1,0 +1,12 @@
+/* Turn-wave support styles. The wave animates the standalone `scale`
+ * property on the official navigator's mark buttons from JS; it composes
+ * with the host's own inline `transform` (mark positioning) instead of
+ * replacing it. transform-origin applies to `scale` as well and is chosen
+ * per placement so ticks grow INTO the content area. The short transition
+ * smooths per-frame steps into the lengthen-then-recede ripple while
+ * staying far below the sweep speed. */
+[data-bgs-turnwave] button[type="button"] {
+  transform-origin: var(--bgs-turnwave-origin, left center);
+  will-change: scale;
+  transition: scale 90ms ease-out;
+}

@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-bg-studio",
-  "version": "0.4.4",
-  "description": "Background Studio for DeepSeek Harness (DSH): picture, transparent and frosted-glass modes plus an animated wallpaper engine — video / web / canvas / task-reactive character bundles, one-click Wallpaper Engine workshop import, theme-mood courtesy prompts. Text colors are never touched.",
+  "version": "0.5.0",
+  "description": "Background Studio for DeepSeek Harness (DSH): picture, transparent and frosted-glass modes plus an animated wallpaper engine — video / web / canvas / task-reactive character bundles, one-click Wallpaper Engine workshop import, theme-mood courtesy prompts. Also drives a beat-synced travelling wave across the official turn navigator's marks from the audio DSH itself plays (silence = rest). Text colors are never touched.",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -12,7 +12,10 @@
     "wallpaper",
     "background",
     "wallpaper-engine",
-    "theme"
+    "theme",
+    "audio-visualizer",
+    "turn-navigator",
+    "spectrum"
   ],
   "repository": {
     "type": "git",

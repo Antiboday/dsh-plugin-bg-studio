@@ -8,6 +8,10 @@
 
 ## Features
 
+### Turn-navigator music wave
+
+DSH 0.2.0-rc+ ships an official **turn navigator** — the column of one tick per conversation turn at the chat's edge (hover tooltip, click to jump). Background Studio makes those ticks **dance with the audio DSH itself plays**: page media elements (sound effects, pet voices, notifications) are analyzed in place — the sound stays audible — and drive a beat-synced travelling wave plus per-tick frequency-band jumps, Wallpaper-Engine-visualizer style (log bands, slow-decay peak normalization, fast attack / slow release). **Total silence = every tick at rest.** The wave only touches the standalone `scale` property, so the navigator's own positioning, hover and click behavior are never disturbed; it stays fully idle on hosts without the navigator. *(Merged from the retired dsh-plugin-pulse-divider.)*
+
 ### Four background modes
 
 | Mode | What you get |
