@@ -42,7 +42,7 @@ export class ActivityMachine {
     if (this.idleClips.length <= 1 || this.snapshot.state !== 'idle') return
     this.idleIndex = (this.idleIndex + 1) % this.idleClips.length
     this.currentIdleClip = this.idleClips[this.idleIndex]
-    this.listener?.(this.snapshot)
+    this.notify()
   }
 
   start(threshold: number): void {
